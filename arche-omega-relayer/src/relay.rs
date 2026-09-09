@@ -1,8 +1,10 @@
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::BufReader;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use rustls::server::AllowAnyAuthenticatedClient;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio::net::{TcpListener, TcpStream};
@@ -11,19 +13,23 @@ use tokio::time::{self, Instant};
 use tokio_rustls::TlsAcceptor;
 use tracing::{error, info, warn};
 use x509_parser::prelude::*;
+
 use crate::config::RelayConfig;
+use crate::metrics::Metrics;
 use crate::protocol::{self, RelayMessage};
 
 pub struct RelayServer {
     config: RelayConfig,
     tls_acceptor: TlsAcceptor,
+    metrics: Arc<Metrics>,
 }
 
 impl RelayServer {
-    pub fn new(config: RelayConfig) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(config: RelayConfig, metrics: Arc<Metrics>) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             tls_acceptor: build_tls_acceptor(&config)?,
             config,
+            metrics,
         })
     }
 
@@ -31,16 +37,21 @@ impl RelayServer {
         let listener = TcpListener::bind(&self.config.bind_addr).await?;
         let (routing_tx, _) = broadcast::channel::<(String, RelayMessage)>(256);
         info!(
-            "==> kette12-relay (mTLS + protocol + session + subscriptions + routing) listening on {}",
+            "==> kette12-relay (mTLS + protocol + session + subscriptions + routing + metrics) listening on {}",
             self.config.bind_addr
         );
+
         loop {
             let (stream, addr) = listener.accept().await?;
             let acceptor = self.tls_acceptor.clone();
             let routing_tx = routing_tx.clone();
             let timeout = Duration::from_secs(self.config.session_timeout_secs);
+            let metrics = self.metrics.clone();
+
             tokio::spawn(async move {
-                if let Err(e) = handle_client(acceptor, stream, addr, timeout, routing_tx).await {
+                if let Err(e) =
+                    handle_client(acceptor, stream, addr, timeout, routing_tx, metrics).await
+                {
                     error!("Error handling client {}: {}", addr, e);
                 }
             });
@@ -110,6 +121,7 @@ async fn handle_client(
     addr: std::net::SocketAddr,
     session_timeout: Duration,
     routing_tx: broadcast::Sender<(String, RelayMessage)>,
+    metrics: Arc<Metrics>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut tls_stream = acceptor.accept(stream).await?;
 
@@ -158,6 +170,9 @@ async fn handle_client(
         "Handshake accepted: node_id={}, role={}, addr={}",
         node_id, role, addr
     );
+    metrics.total_handshakes.fetch_add(1, Ordering::Relaxed);
+    metrics.active_sessions.fetch_add(1, Ordering::Relaxed);
+
     protocol::write_message(
         &mut tls_stream,
         &RelayMessage::Ack {
@@ -177,6 +192,7 @@ async fn handle_client(
         tokio::select! {
             _ = time::sleep(remaining) => {
                 warn!("Session timeout for {}", node_id);
+                metrics.total_timeouts.fetch_add(1, Ordering::Relaxed);
                 let _ = protocol::write_message(
                     &mut writer,
                     &RelayMessage::Ack {
@@ -194,10 +210,12 @@ async fn handle_client(
                         &mut writer,
                         &RelayMessage::Payload { topic, data },
                     ).await?;
+                    metrics.total_payloads_out.fetch_add(1, Ordering::Relaxed);
                 }
                 Ok(_) => {}
                 Err(broadcast::error::RecvError::Lagged(skipped)) => {
                     warn!("Subscriber {} lagged; skipped {} messages", node_id, skipped);
+                    metrics.total_lagged.fetch_add(skipped, Ordering::Relaxed);
                 }
                 Err(broadcast::error::RecvError::Closed) => break,
             },
@@ -215,6 +233,9 @@ async fn handle_client(
                 match msg {
                     RelayMessage::Subscribe { topic } => {
                         let added = subscriptions.insert(topic.clone());
+                        if added {
+                            metrics.total_subscribes.fetch_add(1, Ordering::Relaxed);
+                        }
                         let status = if added { "subscribed" } else { "already-subscribed" };
                         protocol::write_message(
                             &mut writer,
@@ -225,6 +246,9 @@ async fn handle_client(
                     }
                     RelayMessage::Unsubscribe { topic } => {
                         let removed = subscriptions.remove(&topic);
+                        if removed {
+                            metrics.total_unsubscribes.fetch_add(1, Ordering::Relaxed);
+                        }
                         let status = if removed { "unsubscribed" } else { "not-subscribed" };
                         protocol::write_message(
                             &mut writer,
@@ -242,6 +266,7 @@ async fn handle_client(
                         ).await?;
                     }
                     RelayMessage::Payload { topic, data } => {
+                        metrics.total_payloads_in.fetch_add(1, Ordering::Relaxed);
                         let receivers = routing_tx
                             .send((
                                 node_id.clone(),
@@ -278,6 +303,7 @@ async fn handle_client(
         }
     }
 
+    metrics.active_sessions.fetch_sub(1, Ordering::Relaxed);
     info!("Session ended for {}", node_id);
     Ok(())
 }
