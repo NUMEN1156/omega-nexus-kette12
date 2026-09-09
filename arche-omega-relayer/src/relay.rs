@@ -16,23 +16,27 @@ use x509_parser::prelude::*;
 
 use crate::config::RelayConfig;
 use crate::metrics::Metrics;
+use crate::outbox::OutboxWriter;
 use crate::protocol::{self, RelayMessage};
 
 pub struct RelayServer {
     config: RelayConfig,
     tls_acceptor: TlsAcceptor,
     metrics: Arc<Metrics>,
+    outbox: OutboxWriter,
 }
 
 impl RelayServer {
     pub fn new(
         config: RelayConfig,
         metrics: Arc<Metrics>,
+        outbox: OutboxWriter,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             tls_acceptor: build_tls_acceptor(&config)?,
             config,
             metrics,
+            outbox,
         })
     }
 
@@ -50,10 +54,21 @@ impl RelayServer {
             let routing_tx = routing_tx.clone();
             let timeout = Duration::from_secs(self.config.session_timeout_secs);
             let metrics = self.metrics.clone();
+            let outbox = self.outbox.clone();
+            let outbox_filters = self.config.outbox_topic_filters.clone();
 
             tokio::spawn(async move {
-                if let Err(e) =
-                    handle_client(acceptor, stream, addr, timeout, routing_tx, metrics).await
+                if let Err(e) = handle_client(
+                    acceptor,
+                    stream,
+                    addr,
+                    timeout,
+                    routing_tx,
+                    metrics,
+                    outbox,
+                    outbox_filters,
+                )
+                .await
                 {
                     error!("Error handling client {}: {}", addr, e);
                 }
@@ -123,6 +138,8 @@ async fn handle_client(
     session_timeout: Duration,
     routing_tx: broadcast::Sender<(String, RelayMessage)>,
     metrics: Arc<Metrics>,
+    outbox: OutboxWriter,
+    outbox_filters: Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut tls_stream = acceptor.accept(stream).await?;
 
@@ -261,6 +278,13 @@ async fn handle_client(
                     }
                     RelayMessage::Payload { topic, data } => {
                         metrics.total_payloads_in.fetch_add(1, Ordering::Relaxed);
+                        let should_persist = outbox_filters.is_empty()
+                            || outbox_filters.iter().any(|filter| filter == &topic);
+                        if should_persist {
+                            if let Err(error) = outbox.enqueue(&topic, &data) {
+                                warn!(%error, topic = %topic, "failed to enqueue payload in outbox");
+                            }
+                        }
                         let receivers = routing_tx
                             .send((
                                 node_id.clone(),

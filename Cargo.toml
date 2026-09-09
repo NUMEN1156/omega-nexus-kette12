@@ -1,0 +1,3 @@
+[workspace]
+members = ["arche-omega-relayer"]
+resolver = "2"
