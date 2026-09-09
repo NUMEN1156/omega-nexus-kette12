@@ -2,7 +2,7 @@ name: Rust CI
 
 on:
   push:
-    branches: [main, feat/relay-metrics]
+    branches: [main, feat/outbox-connector]
   pull_request:
 
 jobs:
