@@ -6,7 +6,7 @@ on:
 
   push:
   
-    branches: [main, feat/relay-security]
+    branches: [main, feat/relay-security, feat/relay-protocol]
     
   pull_request:
   
@@ -45,9 +45,6 @@ jobs:
       - name: cargo test
       
         run: cargo test
-        
-
-
 
 
 
