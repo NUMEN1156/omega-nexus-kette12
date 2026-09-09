@@ -1,0 +1,37 @@
+services:
+  relay:
+    build:
+      context: ./arche-omega-relayer
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"   # mTLS relay
+      - "9090:9090"   # health/metrics
+    volumes:
+      - ./arche-omega-relayer/certs:/app/certs:ro
+    environment:
+      - RUST_LOG=info
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9090/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # Optional second instance for multi-provider smoke tests (profile: load)
+  clap-provider:
+    build:
+      context: ./arche-omega-relayer
+      dockerfile: Dockerfile
+    entrypoint: ["/usr/local/bin/clap_provider"]
+    volumes:
+      - ./arche-omega-relayer/certs:/app/certs:ro
+    environment:
+      - RUST_LOG=info
+      - RELAY_HOST=relay
+      - RELAY_PORT=8080
+    depends_on:
+      relay:
+        condition: service_healthy
+    profiles: ["provider"]
+    restart: "no"
