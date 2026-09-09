@@ -3,17 +3,22 @@ use std::io::BufReader;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls::server::AllowAnyAuthenticatedClient;
+use rustls::{Certificate, PrivateKey, ServerConfig};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::broadcast;
 use tokio::time::{self, Instant};
 use tokio_rustls::TlsAcceptor;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 use x509_parser::prelude::*;
 
 use crate::config::RelayConfig;
 use crate::protocol::{self, RelayMessage};
 
+/// Authenticated relay with bounded topic fan-out.
+///
+/// Every authenticated session is currently a subscriber. Payloads are
+/// broadcast to all other sessions; the publisher receives an Ack only.
 pub struct RelayServer {
     config: RelayConfig,
     tls_acceptor: TlsAcceptor,
@@ -30,8 +35,10 @@ impl RelayServer {
 
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error>> {
         let listener = TcpListener::bind(&self.config.bind_addr).await?;
+        let (routing_tx, _) = broadcast::channel::<(String, RelayMessage)>(256);
+
         info!(
-            "==> kette12-relay (mTLS + protocol + session) listening on {}",
+            "==> kette12-relay (mTLS + protocol + session + routing) listening on {}",
             self.config.bind_addr
         );
 
@@ -40,10 +47,19 @@ impl RelayServer {
             info!("Incoming TCP connection from: {}", addr);
 
             let acceptor = self.tls_acceptor.clone();
+            let routing_tx = routing_tx.clone();
             let session_timeout = Duration::from_secs(self.config.session_timeout_secs);
 
             tokio::spawn(async move {
-                if let Err(e) = handle_client(acceptor, stream, addr, session_timeout).await {
+                if let Err(e) = handle_client(
+                    acceptor,
+                    stream,
+                    addr,
+                    session_timeout,
+                    routing_tx,
+                )
+                .await
+                {
                     error!("Error handling client {}: {}", addr, e);
                 }
             });
@@ -77,7 +93,6 @@ fn build_tls_acceptor(config: &RelayConfig) -> Result<TlsAcceptor, Box<dyn std::
     }
 
     let client_auth = AllowAnyAuthenticatedClient::new(root_store);
-
     let server_config = ServerConfig::builder()
         .with_safe_defaults()
         .with_client_cert_verifier(Arc::new(client_auth))
@@ -118,28 +133,22 @@ async fn handle_client(
     stream: TcpStream,
     addr: std::net::SocketAddr,
     session_timeout: Duration,
+    routing_tx: broadcast::Sender<(String, RelayMessage)>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut tls_stream = acceptor.accept(stream).await?;
     info!("TLS handshake completed for {}", addr);
 
-    // Derive node_id from client certificate (authoritative)
     let cert_node_id = {
         let (_, session) = tls_stream.get_ref();
         let peer_certs = session
             .peer_certificates()
             .ok_or("No peer certificate presented (mTLS required)")?;
-
-        let first = peer_certs
-            .first()
-            .ok_or("Empty peer certificate chain")?;
-
+        let first = peer_certs.first().ok_or("Empty peer certificate chain")?;
         extract_node_id(&first.0).map_err(|e| e.to_string())?
     };
 
     info!("Authenticated certificate node_id={} from {}", cert_node_id, addr);
 
-    // --- Application protocol: first message MUST be Handshake ---
-    // Use a one-shot timeout for the initial Handshake as well.
     let first = tokio::time::timeout(session_timeout, protocol::read_message(&mut tls_stream))
         .await
         .map_err(|_| "timeout waiting for initial Handshake")??;
@@ -175,7 +184,6 @@ async fn handle_client(
     };
 
     info!("Handshake accepted: node_id={}, role={}", node_id, role);
-
     protocol::write_message(
         &mut tls_stream,
         &RelayMessage::Ack {
@@ -184,29 +192,41 @@ async fn handle_client(
     )
     .await?;
 
-    // --- Main message loop with session supervision ---
+    let mut routing_rx = routing_tx.subscribe();
     let mut last_activity = Instant::now();
 
     loop {
         let remaining = session_timeout.saturating_sub(last_activity.elapsed());
 
         tokio::select! {
-            // Session timed out — no message received within the window
             _ = time::sleep(remaining) => {
-                warn!(
-                    "Session timeout for {} (no message for {:?})", 
-                    node_id, session_timeout
-                );
+                warn!("Session timeout for {} (no message for {:?})", node_id, session_timeout);
                 let _ = protocol::write_message(
                     &mut tls_stream,
-                    &RelayMessage::Ack {
-                        status: "error: session timeout".into(),
-                    },
+                    &RelayMessage::Ack { status: "error: session timeout".into() },
                 ).await;
                 break;
             }
 
-            // Incoming message
+            routed = routing_rx.recv() => {
+                match routed {
+                    Ok((source_node_id, RelayMessage::Payload { topic, data }))
+                        if source_node_id != node_id =>
+                    {
+                        info!("Routing topic='{}' from {} to {}", topic, source_node_id, node_id);
+                        protocol::write_message(
+                            &mut tls_stream,
+                            &RelayMessage::Payload { topic, data },
+                        ).await?;
+                    }
+                    Ok(_) => {}
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        warn!("Subscriber {} lagged; skipped {} routed messages", node_id, skipped);
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                }
+            }
+
             result = protocol::read_message(&mut tls_stream) => {
                 let msg = match result {
                     Ok(m) => m,
@@ -215,8 +235,6 @@ async fn handle_client(
                         break;
                     }
                 };
-
-                // Any valid message resets the activity timer
                 last_activity = Instant::now();
 
                 match msg {
@@ -224,22 +242,20 @@ async fn handle_client(
                         info!("Heartbeat from {} (ts={})", node_id, timestamp);
                         protocol::write_message(
                             &mut tls_stream,
-                            &RelayMessage::Heartbeat {
-                                timestamp: now_secs(),
-                            },
+                            &RelayMessage::Heartbeat { timestamp: now_secs() },
                         ).await?;
                     }
                     RelayMessage::Payload { topic, data } => {
-                        info!(
-                            "Payload from {} topic='{}' len={}",
-                            node_id,
-                            topic,
-                            data.len()
-                        );
+                        let receivers = routing_tx.send((
+                            node_id.clone(),
+                            RelayMessage::Payload { topic: topic.clone(), data },
+                        )).unwrap_or(0);
+                        let subscribers = receivers.saturating_sub(1);
+                        info!("Published topic='{}' from {} to {} subscribers", topic, node_id, subscribers);
                         protocol::write_message(
                             &mut tls_stream,
                             &RelayMessage::Ack {
-                                status: format!("received:{}", topic),
+                                status: format!("published:{}:fanout={}", topic, subscribers),
                             },
                         ).await?;
                     }
@@ -247,14 +263,10 @@ async fn handle_client(
                         warn!("Unexpected second Handshake from {}, rejecting", node_id);
                         protocol::write_message(
                             &mut tls_stream,
-                            &RelayMessage::Ack {
-                                status: "error: handshake already completed".into(),
-                            },
+                            &RelayMessage::Ack { status: "error: handshake already completed".into() },
                         ).await?;
                     }
-                    RelayMessage::Ack { status } => {
-                        info!("Ack from {}: {}", node_id, status);
-                    }
+                    RelayMessage::Ack { status } => info!("Ack from {}: {}", node_id, status),
                 }
             }
         }
