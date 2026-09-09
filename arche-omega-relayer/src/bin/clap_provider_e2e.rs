@@ -73,7 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )?;
     let connector = TlsConnector::from(Arc::new(config));
     let socket = TcpStream::connect(env_or("RELAY_ADDR", "127.0.0.1:8080")).await?;
-    let server_name = ServerName::try_from(env_or("RELAY_SERVER_NAME", "localhost"))?.to_owned();
+    let server_name_value = env_or("RELAY_SERVER_NAME", "localhost");
+    let server_name = ServerName::try_from(server_name_value.as_str())
+        .map_err(|_| "bad server name")?
+        .to_owned();
     let tls = connector.connect(server_name, socket).await?;
     let (mut reader, mut writer) = tokio::io::split(tls);
     let node_id = env_or("CLAP_NODE_ID", "clap-provider");
