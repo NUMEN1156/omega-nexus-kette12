@@ -1,1 +1,75 @@
-services:  relay:    build:      context: ./arche-omega-relayer      dockerfile: Dockerfile    ports:      - "8080:8080"      - "9090:9090"    volumes:      - ./arche-omega-relayer/certs:/app/certs:ro      - ./.e2e-data:/app/data    environment:      RUST_LOG: info      OUTBOX_TOPIC_FILTERS: "${OUTBOX_TOPIC_FILTERS:-clap.embedding.request}"      L1_EVM_ENABLED: "${L1_EVM_ENABLED:-false}"      L1_EVM_RPC_URL: "${L1_EVM_RPC_URL:-http://anvil:8545}"      L1_EVM_FROM: "${L1_EVM_FROM:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}"      L1_EVM_TO: "${L1_EVM_TO:-0x0000000000000000000000000000000000000001}"      L1_EVM_CHAIN_ID: "${L1_EVM_CHAIN_ID:-31337}"    depends_on:      anvil:        condition: service_healthy    healthcheck:      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9090/"]      interval: 5s      timeout: 3s      retries: 10      start_period: 10s    restart: unless-stopped  anvil:    image: ghcr.io/foundry-rs/foundry:latest    command: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337"]    ports:      - "8545:8545"    healthcheck:      test: ["CMD", "cast", "block-number", "--rpc-url", "http://127.0.0.1:8545"]      interval: 3s      timeout: 2s      retries: 20    profiles: ["e2e"]    restart: unless-stopped  clap-provider:    build:      context: ./arche-omega-relayer      dockerfile: Dockerfile    entrypoint: ["/usr/local/bin/clap_provider"]    volumes:      - ./arche-omega-relayer/certs:/app/certs:ro    environment:      RUST_LOG: info      RELAY_HOST: relay      RELAY_PORT: 8080    depends_on:      relay:        condition: service_healthy    profiles: ["provider"]    restart: "no"  test-orchestrator:    image: python:3.12-slim    working_dir: /workspace    command: ["python", "arche-omega-relayer/tests/e2e_orchestrator.py", "--relay-host", "relay", "--rpc-url", "http://anvil:8545", "--cert-dir", "/certs", "--health-url", "http://relay:9090/", "--db", "/e2e-data/outbox.sqlite3", "--load", "10"]    volumes:      - ./:/workspace:ro      - ./arche-omega-relayer/certs:/certs:ro      - ./.e2e-data:/e2e-data    depends_on:
+services:
+  relay:
+    build:
+      context: ./arche-omega-relayer
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - ./arche-omega-relayer/certs:/app/certs:ro
+      - ./.e2e-data:/app/data
+    environment:
+      RUST_LOG: info
+      OUTBOX_TOPIC_FILTERS: "${OUTBOX_TOPIC_FILTERS:-clap.embedding.request}"
+      L1_EVM_ENABLED: "${L1_EVM_ENABLED:-false}"
+      L1_EVM_RPC_URL: "${L1_EVM_RPC_URL:-http://anvil:8545}"
+      L1_EVM_FROM: "${L1_EVM_FROM:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}"
+      L1_EVM_TO: "${L1_EVM_TO:-0x0000000000000000000000000000000000000001}"
+      L1_EVM_CHAIN_ID: "${L1_EVM_CHAIN_ID:-31337}"
+    depends_on:
+      anvil:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9090/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    command: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--chain-id", "31337"]
+    ports:
+      - "8545:8545"
+    healthcheck:
+      test: ["CMD", "cast", "block-number", "--rpc-url", "http://127.0.0.1:8545"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    profiles: ["e2e"]
+    restart: unless-stopped
+
+  clap-provider:
+    build:
+      context: ./arche-omega-relayer
+      dockerfile: Dockerfile
+    entrypoint: ["/usr/local/bin/clap_provider"]
+    volumes:
+      - ./arche-omega-relayer/certs:/app/certs:ro
+    environment:
+      RUST_LOG: info
+      RELAY_HOST: relay
+      RELAY_PORT: 8080
+    depends_on:
+      relay:
+        condition: service_healthy
+    profiles: ["provider"]
+    restart: "no"
+
+  test-orchestrator:
+    image: python:3.12-slim
+    network_mode: host
+    working_dir: /workspace
+    command: ["python", "arche-omega-relayer/tests/e2e_orchestrator.py", "--relay-host", "127.0.0.1", "--rpc-url", "http://127.0.0.1:8545", "--cert-dir", "/certs", "--db", "/e2e-data/outbox.sqlite3", "--load", "10"]
+    volumes:
+      - ./:/workspace:ro
+      - ./arche-omega-relayer/certs:/certs:ro
+      - ./.e2e-data:/e2e-data
+    depends_on:
+      relay:
+        condition: service_healthy
+      anvil:
+        condition: service_healthy
+    profiles: ["e2e"]
