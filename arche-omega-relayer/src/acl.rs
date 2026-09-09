@@ -66,6 +66,6 @@ mod tests {
     #[test]
     fn malformed_or_empty_policy_fails_closed() {
         assert!(TopicAcl::parse("").is_err());
-        assert!(TopicAcl::parse("node-a").is_err();
-     }
+        assert!(TopicAcl::parse("node-a").is_err());
+    }
 }
