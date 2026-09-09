@@ -6,7 +6,7 @@ on:
 
   push:
   
-    branches: [main, feat/relay-security, feat/relay-protocol]
+    branches: [main, feat/relay-security, feat/relay-protocol, feat/relay-session]
     
   pull_request:
   
