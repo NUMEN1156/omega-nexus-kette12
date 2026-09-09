@@ -14,6 +14,7 @@ use tokio_rustls::TlsAcceptor;
 use tracing::{error, info, warn};
 use x509_parser::prelude::*;
 
+use crate::acl::TopicAcl;
 use crate::config::RelayConfig;
 use crate::metrics::Metrics;
 use crate::outbox::OutboxWriter;
@@ -56,6 +57,7 @@ impl RelayServer {
             let metrics = self.metrics.clone();
             let outbox = self.outbox.clone();
             let outbox_filters = self.config.outbox_topic_filters.clone();
+            let acl = self.config.acl.clone();
 
             tokio::spawn(async move {
                 if let Err(e) = handle_client(
@@ -67,6 +69,7 @@ impl RelayServer {
                     metrics,
                     outbox,
                     outbox_filters,
+                    acl,
                 )
                 .await
                 {
@@ -140,6 +143,7 @@ async fn handle_client(
     metrics: Arc<Metrics>,
     outbox: OutboxWriter,
     outbox_filters: Vec<String>,
+    acl: TopicAcl,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut tls_stream = acceptor.accept(stream).await?;
 
@@ -243,6 +247,10 @@ async fn handle_client(
 
                 match msg {
                     RelayMessage::Subscribe { topic } => {
+                        if !acl.allows(&node_id, &topic) {
+                            protocol::write_message(&mut writer, &RelayMessage::Ack { status: format!("error: unauthorized topic: {}", topic) }).await?;
+                            continue;
+                        }
                         let added = subscriptions.insert(topic.clone());
                         if added {
                             metrics.total_subscribes.fetch_add(1, Ordering::Relaxed);
@@ -256,6 +264,10 @@ async fn handle_client(
                         ).await?;
                     }
                     RelayMessage::Unsubscribe { topic } => {
+                        if !acl.allows(&node_id, &topic) {
+                            protocol::write_message(&mut writer, &RelayMessage::Ack { status: format!("error: unauthorized topic: {}", topic) }).await?;
+                            continue;
+                        }
                         let removed = subscriptions.remove(&topic);
                         if removed {
                             metrics.total_unsubscribes.fetch_add(1, Ordering::Relaxed);
@@ -277,6 +289,10 @@ async fn handle_client(
                         ).await?;
                     }
                     RelayMessage::Payload { topic, data } => {
+                        if !acl.allows(&node_id, &topic) {
+                            protocol::write_message(&mut writer, &RelayMessage::Ack { status: format!("error: unauthorized topic: {}", topic) }).await?;
+                            continue;
+                        }
                         metrics.total_payloads_in.fetch_add(1, Ordering::Relaxed);
                         let should_persist = outbox_filters.is_empty()
                             || outbox_filters.iter().any(|filter| filter == &topic);
