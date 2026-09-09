@@ -16,6 +16,10 @@ pub struct RelayConfig {
     pub key_path: PathBuf,
     /// CA certificate used to verify client certificates (mTLS)
     pub ca_cert_path: PathBuf,
+    /// SQLite file used by the durable outbox.
+    pub outbox_db_path: PathBuf,
+    /// Topics persisted to the outbox; empty means persist every payload.
+    pub outbox_topic_filters: Vec<String>,
 }
 
 impl Default for RelayConfig {
@@ -28,6 +32,14 @@ impl Default for RelayConfig {
             cert_path: PathBuf::from("certs/server.crt"),
             key_path: PathBuf::from("certs/server.key"),
             ca_cert_path: PathBuf::from("certs/ca.crt"),
+            outbox_db_path: PathBuf::from("data/outbox.sqlite3"),
+            outbox_topic_filters: std::env::var("OUTBOX_TOPIC_FILTERS")
+                .unwrap_or_default()
+                .split(',')
+                .map(str::trim)
+                .filter(|topic| !topic.is_empty())
+                .map(ToOwned::to_owned)
+                .collect(),
         }
     }
 }
