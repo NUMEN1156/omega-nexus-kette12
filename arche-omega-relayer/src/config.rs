@@ -20,6 +20,8 @@ pub struct RelayConfig {
     pub outbox_db_path: PathBuf,
     /// Topics persisted to the outbox; empty means persist every payload.
     pub outbox_topic_filters: Vec<String>,
+    /// Node-ID topic authorization policy; parsing failures must stop startup.
+    pub acl: crate::acl::TopicAcl,
 }
 
 impl Default for RelayConfig {
@@ -33,6 +35,7 @@ impl Default for RelayConfig {
             key_path: PathBuf::from("certs/server.key"),
             ca_cert_path: PathBuf::from("certs/ca.crt"),
             outbox_db_path: PathBuf::from("data/outbox.sqlite3"),
+            acl: crate::acl::TopicAcl::from_env().expect("invalid RELAY_ACL; refusing to start"),
             outbox_topic_filters: std::env::var("OUTBOX_TOPIC_FILTERS")
                 .unwrap_or_default()
                 .split(',')
