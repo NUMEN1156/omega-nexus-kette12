@@ -25,7 +25,10 @@ pub struct RelayServer {
 }
 
 impl RelayServer {
-    pub fn new(config: RelayConfig, metrics: Arc<Metrics>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(
+        config: RelayConfig,
+        metrics: Arc<Metrics>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Self {
             tls_acceptor: build_tls_acceptor(&config)?,
             config,
@@ -85,9 +88,7 @@ fn build_tls_acceptor(config: &RelayConfig) -> Result<TlsAcceptor, Box<dyn std::
     Ok(TlsAcceptor::from(Arc::new(cfg)))
 }
 
-fn extract_node_id(
-    cert_der: &[u8],
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+fn extract_node_id(cert_der: &[u8]) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let (_, cert) = X509Certificate::from_der(cert_der)
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { e.to_string().into() })?;
 
@@ -127,15 +128,8 @@ async fn handle_client(
 
     let cert_node_id = {
         let (_, session) = tls_stream.get_ref();
-        let certs = session
-            .peer_certificates()
-            .ok_or("No peer certificate")?;
-        extract_node_id(
-            &certs
-                .first()
-                .ok_or("Empty peer certificate chain")?
-                .0,
-        )?
+        let certs = session.peer_certificates().ok_or("No peer certificate")?;
+        extract_node_id(&certs.first().ok_or("Empty peer certificate chain")?.0)?
     };
 
     let first = time::timeout(session_timeout, protocol::read_message(&mut tls_stream))
