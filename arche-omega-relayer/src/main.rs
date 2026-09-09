@@ -48,9 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   
     let sink = Arc::new(
       
-        EvmSink::from_env()
-      
-            .map_err(|error| format!("invalid EVM sink configuration: {error}"))?,
+        EvmSink::from_env().map_err(|error| format!("invalid EVM sink configuration: {error}"))?,
       
     );
   
@@ -101,7 +99,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
   
 }
-
 
 
 
