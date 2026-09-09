@@ -71,28 +71,29 @@ async fn handle_client(
     };
     info!("Handshake accepted: node_id={}, role={}, addr={}", node_id, role, addr);
     protocol::write_message(&mut tls_stream, &RelayMessage::Ack { status: "ok".into() }).await?;
+    let (mut reader, mut writer) = tokio::io::split(tls_stream);
     let mut routing_rx = routing_tx.subscribe();
     let mut subscriptions: HashSet<String> = HashSet::new();
     let mut last_activity = Instant::now();
     loop {
         let remaining = session_timeout.saturating_sub(last_activity.elapsed());
         tokio::select! {
-            _ = time::sleep(remaining) => { warn!("Session timeout for {}", node_id); let _ = protocol::write_message(&mut tls_stream, &RelayMessage::Ack { status: "error: session timeout".into() }).await; break; }
+            _ = time::sleep(remaining) => { warn!("Session timeout for {}", node_id); let _ = protocol::write_message(&mut writer, &RelayMessage::Ack { status: "error: session timeout".into() }).await; break; }
             routed = routing_rx.recv() => match routed {
-                Ok((source, RelayMessage::Payload { topic, data })) if source != node_id && subscriptions.contains(&topic) => { protocol::write_message(&mut tls_stream, &RelayMessage::Payload { topic, data }).await?; }
+                Ok((source, RelayMessage::Payload { topic, data })) if source != node_id && subscriptions.contains(&topic) => { protocol::write_message(&mut writer, &RelayMessage::Payload { topic, data }).await?; }
                 Ok(_) => {}
                 Err(broadcast::error::RecvError::Lagged(skipped)) => warn!("Subscriber {} lagged; skipped {} messages", node_id, skipped),
                 Err(broadcast::error::RecvError::Closed) => break,
             },
-            result = protocol::read_message(&mut tls_stream) => {
+            result = protocol::read_message(&mut reader) => {
                 let msg = match result { Ok(m) => m, Err(e) => { info!("Connection closed for {}: {}", node_id, e); break; } };
                 last_activity = Instant::now();
                 match msg {
-                    RelayMessage::Subscribe { topic } => { let added = subscriptions.insert(topic.clone()); let status = if added { "subscribed" } else { "already-subscribed" }; protocol::write_message(&mut tls_stream, &RelayMessage::Ack { status: format!("{}:{}", status, topic) }).await?; }
-                    RelayMessage::Unsubscribe { topic } => { let removed = subscriptions.remove(&topic); let status = if removed { "unsubscribed" } else { "not-subscribed" }; protocol::write_message(&mut tls_stream, &RelayMessage::Ack { status: format!("{}:{}", status, topic) }).await?; }
-                    RelayMessage::Heartbeat { timestamp } => { protocol::write_message(&mut tls_stream, &RelayMessage::Heartbeat { timestamp: now_secs() }).await?; }
-                    RelayMessage::Payload { topic, data } => { let receivers = routing_tx.send((node_id.clone(), RelayMessage::Payload { topic: topic.clone(), data })).unwrap_or(0); protocol::write_message(&mut tls_stream, &RelayMessage::Ack { status: format!("published:{}:fanout={}", topic, receivers.saturating_sub(1)) }).await?; }
-                    RelayMessage::Handshake { .. } => { protocol::write_message(&mut tls_stream, &RelayMessage::Ack { status: "error: handshake already completed".into() }).await?; }
+                    RelayMessage::Subscribe { topic } => { let added = subscriptions.insert(topic.clone()); let status = if added { "subscribed" } else { "already-subscribed" }; protocol::write_message(&mut writer, &RelayMessage::Ack { status: format!("{}:{}", status, topic) }).await?; }
+                    RelayMessage::Unsubscribe { topic } => { let removed = subscriptions.remove(&topic); let status = if removed { "unsubscribed" } else { "not-subscribed" }; protocol::write_message(&mut writer, &RelayMessage::Ack { status: format!("{}:{}", status, topic) }).await?; }
+                    RelayMessage::Heartbeat { timestamp } => { protocol::write_message(&mut writer, &RelayMessage::Heartbeat { timestamp: now_secs() }).await?; }
+                    RelayMessage::Payload { topic, data } => { let receivers = routing_tx.send((node_id.clone(), RelayMessage::Payload { topic: topic.clone(), data })).unwrap_or(0); protocol::write_message(&mut writer, &RelayMessage::Ack { status: format!("published:{}:fanout={}", topic, receivers.saturating_sub(1)) }).await?; }
+                    RelayMessage::Handshake { .. } => { protocol::write_message(&mut writer, &RelayMessage::Ack { status: "error: handshake already completed".into() }).await?; }
                     RelayMessage::Ack { status } => info!("Ack from {}: {}", node_id, status),
                 }
             }
