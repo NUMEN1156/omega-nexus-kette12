@@ -12,8 +12,6 @@ mod protocol;
 
 mod relay;
 
-
-
 use config::RelayConfig;
 
 use evm_sink::EvmSink;
@@ -30,15 +28,11 @@ use std::sync::Arc;
 
 use tracing::info;
 
-
-
 #[tokio::main]
 
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   
     tracing_subscriber::fmt::init();
-  
-
   
     let config = RelayConfig::default();
   
@@ -54,8 +48,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
   
     let dispatcher = OutboxDispatcher::new(outbox.clone(), sink, 100);
   
-
-  
     tokio::spawn(async move {
       
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
@@ -69,8 +61,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
       
     });
-  
-
   
     let health_addr = config.health_addr;
   
@@ -86,24 +76,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       
     });
   
-
-  
     let server = RelayServer::new(config, metrics, outbox)?;
   
     info!("Initializing kette12-relay backbone with mTLS + metrics + EVM sink...");
   
     server.run().await?;
   
-
-  
     Ok(())
   
 }
-
-
-
-
-
 
 
 
