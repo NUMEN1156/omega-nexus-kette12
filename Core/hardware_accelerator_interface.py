@@ -66,8 +66,14 @@ class HardwareAcceleratorInterface:
 class MockHardwareAccelerator(HardwareAcceleratorInterface):
     """Deterministic mock accelerator for CI/CD benchmark simulation."""
 
-    def __init__(self, accelerator_name: str = "mock-fpga", concurrency: int = 2048) -> None:
+    def __init__(
+        self,
+        accelerator_name: str = "mock-fpga",
+        concurrency: int = 2048,
+        target_throughput_per_second: float = 300_000.0,
+    ) -> None:
         super().__init__(accelerator_name=accelerator_name, concurrency=concurrency)
+        self.target_throughput_per_second = target_throughput_per_second
 
     async def process(self, proof_id: str) -> ProofResult:
         async with self._semaphore:
@@ -78,3 +84,17 @@ class MockHardwareAccelerator(HardwareAcceleratorInterface):
                 latency_ms=0.001,
                 accelerator=self.accelerator_name,
             )
+
+    async def process_batch(self, proof_ids: list[str], resonance_hz: float = 117.0) -> tuple[list[ProofResult], AccelerationMetrics]:
+        results = await asyncio.gather(*(self.process(proof_id) for proof_id in proof_ids))
+        processed_count = len(results)
+        elapsed = max(processed_count / max(self.target_throughput_per_second, 1.0), 1e-9)
+        return (
+            results,
+            AccelerationMetrics(
+                processed_count=processed_count,
+                elapsed_seconds=elapsed,
+                throughput_per_second=processed_count / elapsed,
+                resonance_hz=resonance_hz,
+            ),
+        )
