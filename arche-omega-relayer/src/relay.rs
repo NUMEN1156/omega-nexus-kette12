@@ -19,6 +19,7 @@ use crate::config::RelayConfig;
 use crate::metrics::Metrics;
 use crate::outbox::OutboxWriter;
 use crate::protocol::{self, RelayMessage};
+use crate::skills::{self, SkillEvent, SkillKind, SkillResultKind};
 
 pub struct RelayServer {
     config: RelayConfig,
@@ -293,6 +294,16 @@ async fn handle_client(
                             protocol::write_message(&mut writer, &RelayMessage::Ack { status: format!("error: unauthorized topic: {}", topic) }).await?;
                             continue;
                         }
+                        if let Err(error) = validate_skill_payload(&metrics, &topic, &data) {
+                            protocol::write_message(
+                                &mut writer,
+                                &RelayMessage::Ack {
+                                    status: format!("error: fail-closed skill policy: {}", error),
+                                },
+                            )
+                            .await?;
+                            continue;
+                        }
                         metrics.total_payloads_in.fetch_add(1, Ordering::Relaxed);
                         let should_persist = outbox_filters.is_empty()
                             || outbox_filters.iter().any(|filter| filter == &topic);
@@ -339,5 +350,61 @@ async fn handle_client(
 
     metrics.active_sessions.fetch_sub(1, Ordering::Relaxed);
     info!("Session ended for {}", node_id);
+    Ok(())
+}
+
+fn validate_skill_payload(
+    metrics: &Metrics,
+    topic: &str,
+    data: &[u8],
+) -> Result<(), String> {
+    let event = match skills::validate_payload(topic, data) {
+        Ok(event) => event,
+        Err(error) => {
+            if skills::is_skill_topic(topic) {
+                metrics
+                    .total_skill_rejections
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            return Err(error);
+        }
+    };
+    let Some(event) = event else {
+        return Ok(());
+    };
+    match event {
+        SkillEvent::Request { kind } => {
+            metrics.total_skill_requests.fetch_add(1, Ordering::Relaxed);
+            match kind {
+                SkillKind::BrowserUse => {
+                    metrics
+                        .total_browser_skill_requests
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+                SkillKind::Scientific => {
+                    metrics
+                        .total_scientific_skill_requests
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+        SkillEvent::Result { outcome, .. } => {
+            metrics.total_skill_results.fetch_add(1, Ordering::Relaxed);
+            match outcome {
+                SkillResultKind::Success => {
+                    metrics.total_skill_successes.fetch_add(1, Ordering::Relaxed);
+                }
+                SkillResultKind::Failure => {
+                    metrics.total_skill_failures.fetch_add(1, Ordering::Relaxed);
+                }
+                SkillResultKind::Timeout => {
+                    metrics.total_skill_timeouts.fetch_add(1, Ordering::Relaxed);
+                }
+                SkillResultKind::Denied => {
+                    metrics.total_skill_denied.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+        }
+    }
     Ok(())
 }

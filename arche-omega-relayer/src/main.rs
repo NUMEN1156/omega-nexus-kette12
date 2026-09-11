@@ -6,6 +6,7 @@ mod metrics;
 mod outbox;
 mod protocol;
 mod relay;
+mod skills;
 use config::RelayConfig;
 use evm_sink::EvmSink;
 use health::run_health_server;
