@@ -6,6 +6,10 @@ Kette12 Relay backbone for the omega-nexus architecture.
 
 - `arche-omega-relayer` — async TCP relay core (Tokio)
 
+## Roadmaps
+
+- `ARCHE-GOLD-PROTOCOL-PHASE-II-ROADMAP.md` — Phase-II governance, quarterly decision gates, and scaling targets (Q3 2026–Q2 2027)
+
 ## Option B skill layer
 
 The relay now exposes a fail-closed skill transport for the first two KETTE12 scouts:
