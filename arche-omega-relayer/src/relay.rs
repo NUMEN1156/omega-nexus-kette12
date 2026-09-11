@@ -353,11 +353,7 @@ async fn handle_client(
     Ok(())
 }
 
-fn validate_skill_payload(
-    metrics: &Metrics,
-    topic: &str,
-    data: &[u8],
-) -> Result<(), String> {
+fn validate_skill_payload(metrics: &Metrics, topic: &str, data: &[u8]) -> Result<(), String> {
     let event = match skills::validate_payload(topic, data) {
         Ok(event) => event,
         Err(error) => {
@@ -392,7 +388,9 @@ fn validate_skill_payload(
             metrics.total_skill_results.fetch_add(1, Ordering::Relaxed);
             match outcome {
                 SkillResultKind::Success => {
-                    metrics.total_skill_successes.fetch_add(1, Ordering::Relaxed);
+                    metrics
+                        .total_skill_successes
+                        .fetch_add(1, Ordering::Relaxed);
                 }
                 SkillResultKind::Failure => {
                     metrics.total_skill_failures.fetch_add(1, Ordering::Relaxed);

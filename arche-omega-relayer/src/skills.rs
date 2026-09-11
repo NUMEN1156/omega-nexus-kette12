@@ -24,7 +24,9 @@ pub enum SkillResultKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkillEvent {
-    Request { kind: SkillKind },
+    Request {
+        kind: SkillKind,
+    },
     Result {
         kind: SkillKind,
         outcome: SkillResultKind,
@@ -130,7 +132,10 @@ pub fn validate_payload(topic: &str, data: &[u8]) -> Result<Option<SkillEvent>, 
 pub fn is_skill_topic(topic: &str) -> bool {
     matches!(
         topic,
-        BROWSER_REQUEST_TOPIC | BROWSER_RESULT_TOPIC | SCIENTIFIC_REQUEST_TOPIC | SCIENTIFIC_RESULT_TOPIC
+        BROWSER_REQUEST_TOPIC
+            | BROWSER_RESULT_TOPIC
+            | SCIENTIFIC_REQUEST_TOPIC
+            | SCIENTIFIC_RESULT_TOPIC
     )
 }
 
@@ -307,8 +312,11 @@ mod tests {
             "allowed_targets": [],
             "output_topic": BROWSER_RESULT_TOPIC
         });
-        let error = validate_payload(BROWSER_REQUEST_TOPIC, &serde_json::to_vec(&payload).unwrap())
-            .unwrap_err();
+        let error = validate_payload(
+            BROWSER_REQUEST_TOPIC,
+            &serde_json::to_vec(&payload).unwrap(),
+        )
+        .unwrap_err();
         assert!(error.contains("allowed_targets"));
     }
 
@@ -324,7 +332,11 @@ mod tests {
             "max_steps": 4
         });
         assert_eq!(
-            validate_payload(BROWSER_REQUEST_TOPIC, &serde_json::to_vec(&payload).unwrap()).unwrap(),
+            validate_payload(
+                BROWSER_REQUEST_TOPIC,
+                &serde_json::to_vec(&payload).unwrap()
+            )
+            .unwrap(),
             Some(SkillEvent::Request {
                 kind: SkillKind::BrowserUse
             })
@@ -341,8 +353,11 @@ mod tests {
             "allowed_sources": ["arxiv"],
             "output_topic": SCIENTIFIC_RESULT_TOPIC
         });
-        let error = validate_payload(SCIENTIFIC_REQUEST_TOPIC, &serde_json::to_vec(&payload).unwrap())
-            .unwrap_err();
+        let error = validate_payload(
+            SCIENTIFIC_REQUEST_TOPIC,
+            &serde_json::to_vec(&payload).unwrap(),
+        )
+        .unwrap_err();
         assert!(error.contains("label scout"));
     }
 
@@ -354,8 +369,11 @@ mod tests {
             "status": "timeout",
             "summary": "timed out waiting for source"
         });
-        let error = validate_payload(SCIENTIFIC_RESULT_TOPIC, &serde_json::to_vec(&payload).unwrap())
-            .unwrap_err();
+        let error = validate_payload(
+            SCIENTIFIC_RESULT_TOPIC,
+            &serde_json::to_vec(&payload).unwrap(),
+        )
+        .unwrap_err();
         assert!(error.contains("must include an error"));
     }
 

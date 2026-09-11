@@ -45,9 +45,7 @@ impl Metrics {
             total_skill_timeouts: self.total_skill_timeouts.load(Ordering::Relaxed),
             total_skill_denied: self.total_skill_denied.load(Ordering::Relaxed),
             total_skill_rejections: self.total_skill_rejections.load(Ordering::Relaxed),
-            total_browser_skill_requests: self
-                .total_browser_skill_requests
-                .load(Ordering::Relaxed),
+            total_browser_skill_requests: self.total_browser_skill_requests.load(Ordering::Relaxed),
             total_scientific_skill_requests: self
                 .total_scientific_skill_requests
                 .load(Ordering::Relaxed),
