@@ -1,0 +1,281 @@
+openapi: 3.1.0
+info:
+  title: Architecture Scaffolding API
+  version: 1.0.0
+  description: |
+    API zur Orchestrierung eines Multi-Agenten-Workflows, der aus Anforderungen
+    verifizierbare Architekturartefakte erzeugt.
+servers:
+  - url: https://api.omega-nexus.local/v1
+tags:
+  - name: Jobs
+  - name: Artifacts
+  - name: Reviews
+paths:
+  /scaffolding/jobs:
+    post:
+      tags: [Jobs]
+      summary: Startet einen neuen Architektur-Scaffolding-Job
+      operationId: createScaffoldingJob
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobRequest'
+      responses:
+        '202':
+          description: Job akzeptiert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobAccepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /scaffolding/jobs/{jobId}:
+    get:
+      tags: [Jobs]
+      summary: Liefert Status und Metadaten eines Jobs
+      operationId: getScaffoldingJob
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Jobstatus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /scaffolding/jobs/{jobId}/artifacts:
+    get:
+      tags: [Artifacts]
+      summary: Listet erzeugte Artefakte eines abgeschlossenen Jobs
+      operationId: listArtifacts
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: Artefaktliste
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactList'
+        '409':
+          description: Job ist noch nicht abgeschlossen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /scaffolding/jobs/{jobId}/review:
+    post:
+      tags: [Reviews]
+      summary: Human-in-the-loop Entscheidung für den Entwurf
+      operationId: submitReviewDecision
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewDecision'
+      responses:
+        '200':
+          description: Entscheidung gespeichert
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewReceipt'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      description: Eindeutige Job-ID
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Ungültige Anfrage
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Ressource nicht gefunden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    CreateJobRequest:
+      type: object
+      required:
+        - issue_ref
+        - requirement_text
+        - requested_by
+      properties:
+        issue_ref:
+          type: string
+          description: Referenz auf GitHub Issue (z. B. owner/repo#123)
+        requirement_text:
+          type: string
+          minLength: 20
+        requested_by:
+          type: string
+          description: User oder Service-Identität
+        constraints:
+          type: object
+          additionalProperties:
+            type: string
+        timeout_minutes:
+          type: integer
+          minimum: 1
+          maximum: 15
+          default: 15
+
+    JobAccepted:
+      type: object
+      required: [job_id, status, submitted_at]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued]
+        submitted_at:
+          type: string
+          format: date-time
+
+    JobStatus:
+      type: object
+      required:
+        - job_id
+        - status
+        - stage
+        - started_at
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, waiting_approval, completed, failed, cancelled]
+        stage:
+          type: string
+          enum:
+            - normalization
+            - parallel_design
+            - agent_review
+            - consolidation
+            - human_approval
+            - export
+        started_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Finding'
+
+    Finding:
+      type: object
+      required: [type, severity, message]
+      properties:
+        type:
+          type: string
+          enum: [security, quality, consistency]
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        message:
+          type: string
+
+    ArtifactList:
+      type: object
+      required: [job_id, artifacts]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artifact'
+
+    Artifact:
+      type: object
+      required: [name, path, sha256]
+      properties:
+        name:
+          type: string
+          enum:
+            - architecture_summary.json
+            - diagram.mmd
+            - openapi.yaml
+            - traceability_matrix.csv
+            - risk-register.md
+        path:
+          type: string
+        sha256:
+          type: string
+          pattern: '^[A-Fa-f0-9]{64}$'
+
+    ReviewDecision:
+      type: object
+      required: [decision, reviewer]
+      properties:
+        decision:
+          type: string
+          enum: [approve, request_changes]
+        reviewer:
+          type: string
+        comment:
+          type: string
+          maxLength: 4000
+
+    ReviewReceipt:
+      type: object
+      required: [job_id, decision, decided_at]
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum: [approve, request_changes]
+        decided_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
