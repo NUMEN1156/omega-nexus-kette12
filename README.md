@@ -5,6 +5,18 @@ Kette12 Relay backbone for the omega-nexus architecture.
 ## Modules
 
 - `arche-omega-relayer` — async TCP relay core (Tokio)
+- `l1-contracts` — Foundry project; `OutboxTimelock` is the L1 landing contract for outbox events (queue via raw calldata, timelocked `execute`, guardian `cancel`)
+- `scripts/anvil-e2e.sh` — host-only Anvil E2E pipeline; `scripts/ws-event-listener.mjs` — WebSocket `eth_subscribe` log catcher
+
+## Anvil E2E pipeline
+
+```bash
+./scripts/anvil-e2e.sh   # requires anvil/forge/cast, cargo, node >= 22, python3, openssl
+```
+
+Local Node -> Deploy `OutboxTimelock` -> build + start relayer with `L1_EVM_ENABLED=true` -> mTLS publish on `clap.embedding.request` -> `EvmSink` submits the payload as calldata -> `Queued` caught over WebSocket -> `execute()` before `eta` fails closed (`TimelockNotElapsed`) -> `evm_increaseTime` + `evm_mine` -> `execute()` -> `Executed` caught -> replay rejected. Logs land in `.e2e-anvil/`.
+
+Relay ports can be moved with `RELAY_BIND_ADDR` / `RELAY_HEALTH_ADDR`.
 
 ## Roadmaps
 

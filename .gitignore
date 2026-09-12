@@ -1,3 +1,7 @@
 target/
 certs/*.key
 data/*.sqlite3
+.e2e-anvil/
+l1-contracts/out/
+l1-contracts/cache/
+__pycache__/
