@@ -183,7 +183,7 @@ components:
 
     CanonicalizeResponse:
       type: object
-      required: [canonical_json, subject_digest, canonicalization]
+      required: [canonical_json, subject_digest, canonicalization, signature_ready]
       properties:
         canonicalization:
           type: string
@@ -243,8 +243,6 @@ components:
         - artifact_digest
         - provenance_subject_digest
         - oidc_identity
-        - live_validation_approved
-        - scope
       properties:
         commit_sha:
           type: string
@@ -258,12 +256,11 @@ components:
           type: string
         oidc_identity:
           type: string
-        live_validation_approved:
-          type: boolean
-          const: true
-        scope:
+        verification_profile:
           type: string
-          const: all
+          enum: [live-all]
+          default: live-all
+          description: Server policy profile that applies LIVE_VALIDATION_APPROVED=true and scope=all internally.
 
     VerificationRunAccepted:
       type: object
@@ -303,18 +300,20 @@ components:
           items:
             type: string
 
+    VerificationCheckName:
+      enum:
+        - git_integrity
+        - provenance_matching
+        - rekor_inclusion
+        - oidc_validity
+        - zero_error_exit
+
     VerificationCheck:
       type: object
       required: [name, passed]
       properties:
         name:
-          type: string
-          enum:
-            - git_integrity
-            - provenance_matching
-            - rekor_inclusion
-            - oidc_validity
-            - zero_error_exit
+          $ref: '#/components/schemas/VerificationCheckName'
         passed:
           type: boolean
         detail:
@@ -355,16 +354,34 @@ components:
               type: string
               const: WORM
             files:
-              type: array
-              items:
-                type: string
-                enum:
-                  - vault_manifest.json
-                  - blake3_root.json
-                  - state_export.json
-                  - ledger.jsonl
-                  - sig_meta.json
-                  - vault/export/
+              type: object
+              additionalProperties: false
+              required:
+                - vault_manifest
+                - blake3_root
+                - state_export
+                - ledger
+                - sig_meta
+                - vault_export
+              properties:
+                vault_manifest:
+                  type: string
+                  const: vault_manifest.json
+                blake3_root:
+                  type: string
+                  const: blake3_root.json
+                state_export:
+                  type: string
+                  const: state_export.json
+                ledger:
+                  type: string
+                  const: ledger.jsonl
+                sig_meta:
+                  type: string
+                  const: sig_meta.json
+                vault_export:
+                  type: string
+                  const: vault/export/
 
     MutatedFixtureResult:
       type: object

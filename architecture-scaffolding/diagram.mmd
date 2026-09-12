@@ -19,9 +19,9 @@ flowchart LR
     R[Rekor inclusion proof] --> V
   end
 
-  V -->|pass| W[WORM archive\nchmod 444]
-  V -->|pass| UI[Nexus Command Center\nread-only audit mode]
-  V -->|fail| X[Hard stop\ncontinue-on-error: false]
+  V -->|pass only| W[WORM archive\nchmod 444]
+  V -->|pass only| UI[Nexus Command Center\nread-only audit mode]
+  V -->|fail| X[Hard stop\ncontinue-on-error: false\nno UI publish, no archive]
 
   W --> VM[vault_manifest.json]
   W --> BR[blake3_root.json]
