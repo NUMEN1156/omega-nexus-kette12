@@ -27,8 +27,8 @@ pub struct RelayConfig {
 impl Default for RelayConfig {
     fn default() -> Self {
         Self {
-            bind_addr: "0.0.0.0:8080".parse().unwrap(),
-            health_addr: "0.0.0.0:9090".parse().unwrap(),
+            bind_addr: socket_addr_from_env("RELAY_BIND_ADDR", "0.0.0.0:8080"),
+            health_addr: socket_addr_from_env("RELAY_HEALTH_ADDR", "0.0.0.0:9090"),
             heartbeat_interval_secs: 15,
             session_timeout_secs: 45,
             cert_path: PathBuf::from("certs/server.crt"),
@@ -45,4 +45,10 @@ impl Default for RelayConfig {
                 .collect(),
         }
     }
+}
+
+fn socket_addr_from_env(name: &str, default: &str) -> SocketAddr {
+    let raw = std::env::var(name).unwrap_or_else(|_| default.to_owned());
+    raw.parse()
+        .unwrap_or_else(|error| panic!("invalid {name} `{raw}`: {error}; refusing to start"))
 }

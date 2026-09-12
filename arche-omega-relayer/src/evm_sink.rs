@@ -6,11 +6,17 @@ use std::env;
 use std::time::Duration;
 use tracing::{info, warn};
 
+/// `bytes4(keccak256("queue(bytes)"))`
+const QUEUE_SELECTOR: [u8; 4] = [0x23, 0xda, 0x2f, 0x73];
+
 /// JSON-RPC adapter for Anvil/Foundry-compatible nodes.
 ///
 /// The adapter uses `eth_sendTransaction`, which is suitable for local test nodes
 /// with an unlocked `from` account. It is disabled by default; production signing
 /// must be added explicitly rather than silently sending unsigned transactions.
+///
+/// Payloads are submitted as an explicit `queue(bytes)` call on the target
+/// contract so arbitrary outbox bytes can never be misread as another selector.
 pub struct EvmSink {
     client: Client,
     rpc_url: String,
@@ -53,10 +59,23 @@ impl EvmSink {
         })
     }
 
+    /// ABI-encodes `queue(bytes payload)`: selector, offset (0x20), length, right-padded data.
+    fn queue_calldata(payload: &[u8]) -> Vec<u8> {
+        let padded_len = payload.len().div_ceil(32) * 32;
+        let mut data = Vec::with_capacity(4 + 64 + padded_len);
+        data.extend_from_slice(&QUEUE_SELECTOR);
+        data.extend_from_slice(&abi_word(32));
+        data.extend_from_slice(&abi_word(payload.len() as u64));
+        data.extend_from_slice(payload);
+        data.resize(4 + 64 + padded_len, 0);
+        data
+    }
+
     fn payload_hex(event: &OutboxEvent) -> String {
-        let mut encoded = String::with_capacity(2 + event.payload.len() * 2);
+        let calldata = Self::queue_calldata(&event.payload);
+        let mut encoded = String::with_capacity(2 + calldata.len() * 2);
         encoded.push_str("0x");
-        for byte in &event.payload {
+        for byte in &calldata {
             encoded.push_str(&format!("{byte:02x}"));
         }
         encoded
@@ -122,6 +141,12 @@ impl L1Sink for EvmSink {
     }
 }
 
+fn abi_word(value: u64) -> [u8; 32] {
+    let mut word = [0u8; 32];
+    word[24..].copy_from_slice(&value.to_be_bytes());
+    word
+}
+
 fn env_flag(name: &str) -> bool {
     matches!(
         env::var(name).ok().as_deref(),
@@ -148,7 +173,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encodes_payload_without_logging_contents() {
+    fn encodes_payload_as_queue_call() {
         let event = OutboxEvent {
             id: 7,
             topic: "test".into(),
@@ -156,7 +181,27 @@ mod tests {
             created_at: 0,
             attempts: 0,
         };
-        assert_eq!(EvmSink::payload_hex(&event), "0x00abff");
+        // matches `cast calldata 'queue(bytes)' 0x00abff`
+        assert_eq!(
+            EvmSink::payload_hex(&event),
+            "0x23da2f73\
+             0000000000000000000000000000000000000000000000000000000000000020\
+             0000000000000000000000000000000000000000000000000000000000000003\
+             00abff0000000000000000000000000000000000000000000000000000000000"
+        );
+    }
+
+    #[test]
+    fn encodes_empty_and_word_aligned_payloads() {
+        let empty = EvmSink::queue_calldata(&[]);
+        assert_eq!(empty.len(), 4 + 64);
+        assert_eq!(&empty[..4], &QUEUE_SELECTOR);
+        let aligned = EvmSink::queue_calldata(&[1u8; 32]);
+        assert_eq!(aligned.len(), 4 + 64 + 32);
+        assert_eq!(aligned[4 + 63], 32);
+        let unaligned = EvmSink::queue_calldata(&[1u8; 33]);
+        assert_eq!(unaligned.len(), 4 + 64 + 64);
+        assert_eq!(unaligned[unaligned.len() - 1], 0);
     }
 
     #[test]
@@ -194,6 +239,11 @@ fn _json_boundary(_: Value) {}
 #[allow(dead_code)]
 fn _rpc_method_name() -> &'static str {
     "eth_sendTransaction"
+}
+
+#[allow(dead_code)]
+fn _contract_method_signature() -> &'static str {
+    "queue(bytes)"
 }
 
 // This adapter deliberately does not hold private keys.
