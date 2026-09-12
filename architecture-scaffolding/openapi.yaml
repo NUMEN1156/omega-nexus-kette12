@@ -192,7 +192,7 @@ components:
           type: string
         subject_digest:
           type: string
-          description: BLAKE3- oder kompatibler Subject Digest über die kanonische Darstellung
+          description: BLAKE3 Subject Digest über die kanonische Darstellung
         signature_ready:
           type: boolean
           default: true
@@ -215,7 +215,7 @@ components:
 
     ValidateResponse:
       type: object
-      required: [operation, classification, allowed, deterministic]
+      required: [operation, classification, allowed, deterministic, evidence_checks]
       properties:
         operation:
           type: string
@@ -233,7 +233,15 @@ components:
         evidence_checks:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/EvidenceCheckName'
+
+    EvidenceCheckName:
+      type: string
+      enum:
+        - deterministic_invariant
+        - privilege_enforcement
+        - signature_readiness
+        - evidence_required
 
     CreateVerificationRunRequest:
       type: object
@@ -301,6 +309,7 @@ components:
             type: string
 
     VerificationCheckName:
+      type: string
       enum:
         - git_integrity
         - provenance_matching
@@ -348,7 +357,7 @@ components:
               enum: [Ed25519]
         archive:
           type: object
-          required: [mode, files]
+          required: [mode, files, directories]
           properties:
             mode:
               type: string
@@ -362,7 +371,6 @@ components:
                 - state_export
                 - ledger
                 - sig_meta
-                - vault_export
               properties:
                 vault_manifest:
                   type: string
@@ -379,6 +387,11 @@ components:
                 sig_meta:
                   type: string
                   const: sig_meta.json
+            directories:
+              type: object
+              additionalProperties: false
+              required: [vault_export]
+              properties:
                 vault_export:
                   type: string
                   const: vault/export/
