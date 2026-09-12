@@ -1,116 +1,216 @@
 {
-  "version": "1.0.0",
-  "generated_at": "2026-09-11T21:43:22Z",
+  "version": "0.6.0",
+  "generated_at": "2026-09-12T10:10:25Z",
   "scope": {
-    "name": "Omega Nexus Kette12 Architecture Scaffolding",
-    "goal": "Automatisierte Erzeugung verifizierbarer Architekturartefakte aus natürlichsprachlichen Anforderungen in GitHub Issues.",
-    "trigger": "GitHub Label: architecture-scaffolding"
+    "name": "NEXUS_11 v0.6.0 & KETTE12 Compliance Baseline",
+    "goal": "Maschinell prüfbare Integrität durch einen autoritativen Rust-Kern, harte Verification Gates und WORM-archivierte Evidenz.",
+    "status": "reproducible baseline (audited)",
+    "paradigm": "Responsibility Over Control"
   },
+  "principles": [
+    "Deterministische Invarianten: identische Eingänge müssen identische Byte-Repräsentationen und Zustandsübergänge erzeugen.",
+    "Externe Überprüfbarkeit: Dritte müssen den Zustand ohne Zugriff auf die ursprüngliche Logik verifizieren können.",
+    "Dezentralisierte Beweisführung: keine zentrale Vertrauensabhängigkeit von RPCs oder EVM-Nodes.",
+    "Trennung von interpretierender KI und autoritativem Regelkern.",
+    "Neurale Souveränität durch technische Gates vor jeder privilegierten Aktion."
+  ],
   "requirements": {
     "functional": [
-      "Extraktion und Normalisierung von FR/NFR aus Issue-Texten und Anhängen.",
-      "Parallele Erzeugung von Architektur-, API- und Datenbankentwürfen.",
-      "Automatische Konsolidierung zu konsistenten Artefakten mit Versionierung.",
-      "Menschliche Freigabe vor Persistierung der Artefakte im Repository.",
-      "Nachvollziehbare Zuordnung von Anforderungen zu Komponenten (Traceability)."
+      "Ein autoritativer Rust-Kern trifft exklusiv alle Protokollentscheidungen.",
+      "JSON-Payloads werden per RFC 8785 (JCS) kanonisiert, bevor Signaturen oder Zustandsübergänge entstehen.",
+      "Golden Test Vectors beweisen deterministisch Input → Canonicalization → State Transition → Hash/Signature.",
+      "Der @nexus11/cli-adapter delegiert jede protokollrelevante Aktion typsicher an den Rust-Kern.",
+      "Das KETTE12 Verification Gate korreliert Commit, Artifact Digest, Provenance Subject Digest, Rekor Inclusion Proof und OIDC-Identität.",
+      "Die UI konsumiert ausschließlich verifizierte report.json-Artefakte im Read-Only Audit Mode.",
+      "Compliance-Artefakte werden nach Abschluss WORM-geschützt archiviert."
     ],
     "non_functional": [
-      "Deterministische Ausführung pro Job mit reproduzierbaren Outputs.",
-      "Zeitlimit pro Workflow-Lauf von maximal 15 Minuten.",
-      "Read-only Zugriff auf Quellcode während Analysephase.",
-      "Auditierbare Entscheidungs- und Review-Historie.",
-      "Sichere Isolation auf ephemeren Runnern."
+      "Deterministische, plattformübergreifend stabile Byte-Repräsentationen für Ed25519-Signaturen.",
+      "Fail-closed Ausführung bei jeder Integritätsabweichung; continue-on-error bleibt false.",
+      "Hermetische Multi-Stage-Builds mit network=none ohne Shadow-Dependencies.",
+      "SLSA-L4-orientierte Supply-Chain-Nachweise inklusive Provenance, SBOM und Transparency Log Inclusion.",
+      "Read-only Audit-Flows im Browser ohne clientseitige Wahrheitsautorität.",
+      "Unveränderbare Archivierung der Evidenz per chmod 444."
     ]
   },
   "architecture": {
-    "style": "Event-gesteuerte Multi-Agenten-Pipeline mit Human-in-the-loop-Freigabe",
-    "orchestrator": "LangGraph-kompatibler Workflow-Controller",
+    "style": "Deterministischer Compliance-Kern mit verifizierter Supply-Chain und read-only Evidenz-UI",
+    "trust_boundaries": [
+      {
+        "name": "Interpretation Boundary",
+        "rule": "KI/LLM erzeugt nur Hypothesen und Intent-Übersetzungen; keine Definition von Validitätsregeln."
+      },
+      {
+        "name": "Authority Boundary",
+        "rule": "nexus11-core definiert Wahrheit, Operationstypen und State Transitions deterministisch."
+      },
+      {
+        "name": "Audit Boundary",
+        "rule": "Dashboard und Audit Mode visualisieren nur extern erzeugte und bereits verifizierte Evidenz."
+      }
+    ],
     "components": [
       {
-        "name": "Requirements Analyst",
-        "responsibility": "Normalisiert FR/NFR und extrahiert Constraints."
+        "name": "Intent Producer (KI/LLM oder Benutzer)",
+        "responsibility": "Erzeugt Hypothesen, Benutzerabsichten und Anfragen ohne Autorität über Systemwahrheit.",
+        "state_mutation": false
       },
       {
-        "name": "Solution Architect",
-        "responsibility": "Definiert Systemgrenzen, Domänen und Container-Struktur."
+        "name": "nexus11-core",
+        "responsibility": "Autoritativer Rust-Kern für JCS-Kanonisierung, Zustandsübergänge, Ed25519-Signaturen und BLAKE3 Root.",
+        "state_mutation": true
       },
       {
-        "name": "API Designer",
-        "responsibility": "Erzeugt und validiert OpenAPI-Spezifikation."
+        "name": "Golden Test Vector Suite",
+        "responsibility": "Verifiziert deterministisch Kernverhalten vor Zugriff durch Clients oder Interfaces.",
+        "state_mutation": false
       },
       {
-        "name": "Data Architect",
-        "responsibility": "Leitet Datenmodell, Entitäten und Integrationspunkte ab."
+        "name": "@nexus11/cli-adapter",
+        "responsibility": "Typsicherer Subprozess-Adapter für TypeScript/VS Code/Next.js ohne Protokollduplikation.",
+        "state_mutation": false
       },
       {
-        "name": "Security Reviewer",
-        "responsibility": "Prüft Bedrohungen, Missbrauchspfade und Kontrollen."
+        "name": "KETTE12 Hermetic Builder",
+        "responsibility": "Erzeugt reproduzierbare Artefakte, SBOM und in-toto Provenance unter hermetischen Build-Bedingungen.",
+        "state_mutation": true
       },
       {
-        "name": "Quality Reviewer",
-        "responsibility": "Prüft Konsistenz, Vollständigkeit und Widersprüche."
+        "name": "KETTE12 Verification Gate",
+        "responsibility": "Erzwingt harte Freigabe nur bei übereinstimmenden Digests, autorisiertem OIDC und validem Rekor Inclusion Proof.",
+        "state_mutation": false
       },
       {
-        "name": "Human Approver",
-        "responsibility": "Gibt konsolidierte Entwürfe frei oder fordert Revision."
+        "name": "Nexus Command Center",
+        "responsibility": "Read-only Darstellung von Audit-Reports und Mutated-Fixture-Fail-Safe-Verhalten.",
+        "state_mutation": false
+      },
+      {
+        "name": "WORM Evidence Archive",
+        "responsibility": "Archiviert Vault-, Ledger-, Signatur- und Export-Artefakte unveränderbar.",
+        "state_mutation": true
+      }
+    ],
+    "operation_classes": [
+      {
+        "class": "ReadOnly",
+        "operations": ["Validate", "DeriveState", "Canonicalize", "Audit"],
+        "risk": "Zero State Mutation Risk"
+      },
+      {
+        "class": "Mutating",
+        "operations": ["State transition", "Vault mutation", "Ledger append"],
+        "risk": "Integrity Breach Risk"
+      },
+      {
+        "class": "Privileged",
+        "operations": ["Commit", "Publish", "Export"],
+        "risk": "Requires Evidence Check"
       }
     ]
   },
-  "artifacts": [
+  "verification_gate": {
+    "workflow": "kette12-verify.sh with LIVE_VALIDATION_APPROVED=true and scope=all",
+    "hard_fail_invariant": "GitHub Actions jobs must run with continue-on-error: false",
+    "checks": [
+      "Git-Integrität: Remote, Branch und Commit-Hash stimmen überein.",
+      "Provenance-Matching: Artifact Digest entspricht Subject Digest.",
+      "Rekor-Inclusion: Transparency-Log Inclusion Proof validiert erfolgreich.",
+      "OIDC-Validität: Builder-Identität ist autorisiert.",
+      "Zero-Error-Exit: Verifier endet mit Exit-Code 0."
+    ]
+  },
+  "compliance_artifacts": [
     {
-      "name": "architecture_summary.json",
-      "purpose": "Strukturierte Zusammenfassung von Scope, Anforderungen, Architektur und Kontrollen."
+      "name": "vault_manifest.json",
+      "purpose": "Dateiverzeichnis mit Byte-Längen und Hashes",
+      "worm": true
     },
     {
-      "name": "diagram.mmd",
-      "purpose": "Visualisierung von Container-Sicht und End-to-End-Interaktion."
+      "name": "blake3_root.json",
+      "purpose": "Primärer Integritätswurzel-Hash des Gesamtzustands",
+      "worm": true
     },
     {
-      "name": "openapi.yaml",
-      "purpose": "Maschinenlesbare API-Verträge für Jobs, Reviews und Artefaktabruf."
+      "name": "state_export.json",
+      "purpose": "Deterministischer Export des aktuellen Zustands",
+      "worm": true
+    },
+    {
+      "name": "ledger.jsonl",
+      "purpose": "Verkettete Sequenz aller Transaktionen",
+      "worm": true
+    },
+    {
+      "name": "sig_meta.json",
+      "purpose": "Signatur- und Audit-Metadaten",
+      "worm": true
+    },
+    {
+      "name": "vault/export/",
+      "purpose": "Physischer Export der Datenobjekte",
+      "worm": true
     }
   ],
   "security_controls": {
-    "execution": [
-      "Ephemerer Runner ohne persistente Laufzeitdaten zwischen Jobs.",
-      "Read-only Repository-Mount in Analyse- und Entwurfsphase.",
-      "Strict timeout-minutes: 15 zur Begrenzung von Endlosschleifen und Kostenrisiken."
+    "core": [
+      "RFC 8785 (JCS) eliminiert plattformabhängige Serialisierungsabweichungen vor Ed25519-Signaturen.",
+      "BLAKE3 Root verankert Vault- und Ledger-Integrität in einem einzigen Prüfwurzelwert.",
+      "Der Kern erzwingt Operationseinstufungen autoritativ; Clients können Privilegien nicht selbst deklarieren.",
+      "Golden Test Vectors sind Gate vor jeder Client-Nutzung des Kerns."
     ],
-    "governance": [
-      "Ausführung nur bei explizitem Label architecture-scaffolding.",
-      "Pflichtreview durch Security Reviewer und Quality Reviewer.",
-      "Verpflichtende Human-Approval vor Merge oder Export."
+    "supply_chain": [
+      "Hermetische Multi-Stage-Docker-Builds mit network=none.",
+      "CycloneDX 1.6 SBOM für vollständige Lieferketten-Transparenz.",
+      "OIDC, in-toto Provenance und Rekor Inclusion Proof bilden eine geschlossene Beweiskette."
+    ],
+    "ui": [
+      "Die UI ist reiner Signature Consumer ohne eigene Wahrheitslogik.",
+      "Audit Mode bleibt read-only und visualisiert externe report.json-Artefakte.",
+      "Mutated Fixtures demonstrieren den Fail-Safe-Nachweis bei 1-Byte-Manipulationen."
+    ],
+    "retention": [
+      "Compliance-Artefakte werden nach Abschluss mit chmod 444 schreibgeschützt.",
+      "WORM-Archivierung verhindert nachträgliche Manipulation von Audit-Evidenz."
     ]
   },
   "operational_kpis": [
-    "Median Time-to-Draft",
-    "Review Rework Rate",
-    "Approval Lead Time",
-    "Artifact Defect Escape Rate"
+    "Golden Test Vector pass rate",
+    "Verification Gate pass/fail rate",
+    "Digest/provenance correlation success rate",
+    "Rekor inclusion verification latency",
+    "WORM archive completeness"
   ],
   "assumptions": [
-    "MCP-kompatible Tool-Schnittstellen sind verfügbar.",
-    "A2A/AGENTS.md werden für agentenübergreifende Interoperabilität eingehalten.",
-    "Issue-Templates enthalten ausreichend strukturierte Anforderungen."
+    "Der Rust-Kern bleibt die einzige Implementierung der Protokollwahrheit.",
+    "High-Level-Clients integrieren ausschließlich über den @nexus11/cli-adapter.",
+    "Build- und Verifikationssysteme können OIDC-, Provenance- und Rekor-Daten abrufen.",
+    "Audit-Berichte werden außerhalb des Browsers erzeugt und signiert."
   ],
   "risks": [
     {
       "id": "R-01",
-      "title": "Unvollständige Anforderungen im Input",
-      "impact": "Fehlende oder widersprüchliche Entwurfsentscheidungen",
-      "mitigation": "Pflichtschritt zur Anforderungsnormalisierung mit Rückfrage-Loop"
+      "title": "Protokolllogik außerhalb des Rust-Kerns dupliziert",
+      "impact": "Inkonsistente Zustandsregeln, verdoppeltes Audit-Risiko",
+      "mitigation": "Single Logic Point über nexus11-core und verpflichtenden cli-adapter erzwingen"
     },
     {
       "id": "R-02",
-      "title": "Prompt-Injection in Issue-Inhalten",
-      "impact": "Manipulierte Agenten-Ausgaben",
-      "mitigation": "Input-Sanitization, Policies, read-only Execution, Human Review"
+      "title": "Nicht-hermetische Builds laden Shadow-Dependencies nach",
+      "impact": "Supply-Chain-Kompromittierung oder nicht reproduzierbare Artefakte",
+      "mitigation": "Multi-Stage-Hermetic-Builds mit network=none und SBOM/Provenance-Prüfung"
     },
     {
       "id": "R-03",
-      "title": "Nichtdeterministische Artefaktqualität",
-      "impact": "Inkonsistente Spezifikationen zwischen Läufen",
-      "mitigation": "Deterministische Workflow-Schritte und Quality-Gates"
+      "title": "Manipulierte Browser- oder UI-Komponenten suggerieren falsche Sicherheit",
+      "impact": "Fehlentscheidungen durch nicht verifizierte Anzeige",
+      "mitigation": "UI als read-only Signature Consumer ohne lokale Wahrheits- oder Signaturlogik auslegen"
+    },
+    {
+      "id": "R-04",
+      "title": "Archiv-Artefakte bleiben beschreibbar",
+      "impact": "Audit-Evidenz kann nachträglich verändert werden",
+      "mitigation": "WORM-Archivierung mit chmod 444 als Abschlussinvariante erzwingen"
     }
   ]
 }

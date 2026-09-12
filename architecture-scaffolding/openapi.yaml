@@ -1,117 +1,159 @@
 openapi: 3.1.0
 info:
-  title: Architecture Scaffolding API
-  version: 1.0.0
+  title: NEXUS_11 Verification & Compliance API
+  version: 0.6.0
   description: |
-    API zur Orchestrierung eines Multi-Agenten-Workflows, der aus Anforderungen
-    verifizierbare Architekturartefakte erzeugt.
+    API-Verträge für den autoritativen Kern, das KETTE12 Verification Gate und
+    die read-only Bereitstellung verifizierter Audit-Evidenz.
 servers:
-  - url: https://api.omega-nexus.local/v1
+  - url: https://api.nexus11.local/v0.6
+    description: Verifizierte Compliance-Umgebung
 tags:
-  - name: Jobs
-  - name: Artifacts
-  - name: Reviews
+  - name: Core
+  - name: Verification
+  - name: Audit
 paths:
-  /scaffolding/jobs:
+  /core/canonicalize:
     post:
-      tags: [Jobs]
-      summary: Startet einen neuen Architektur-Scaffolding-Job
-      operationId: createScaffoldingJob
+      tags: [Core]
+      summary: Kanonisiert JSON strikt gemäß RFC 8785 (JCS)
+      operationId: canonicalizePayload
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateJobRequest'
+              $ref: '#/components/schemas/CanonicalizeRequest'
+      responses:
+        '200':
+          description: Kanonische Byte-Repräsentation und Digest erzeugt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanonicalizeResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /core/validate:
+    post:
+      tags: [Core]
+      summary: Validiert einen Zustandsübergang mit autoritativer Operationseinstufung
+      operationId: validateTransition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateRequest'
+      responses:
+        '200':
+          description: Ergebnis der ReadOnly-, Mutating- oder Privileged-Prüfung
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /verification/runs:
+    post:
+      tags: [Verification]
+      summary: Startet eine vollständige KETTE12-Live-Validierung
+      operationId: createVerificationRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVerificationRunRequest'
       responses:
         '202':
-          description: Job akzeptiert
+          description: Validierung angenommen
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobAccepted'
+                $ref: '#/components/schemas/VerificationRunAccepted'
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /scaffolding/jobs/{jobId}:
+  /verification/runs/{runId}:
     get:
-      tags: [Jobs]
-      summary: Liefert Status und Metadaten eines Jobs
-      operationId: getScaffoldingJob
+      tags: [Verification]
+      summary: Liefert Status, Digest-Korrelation und Gate-Entscheidung
+      operationId: getVerificationRun
       parameters:
-        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/RunId'
       responses:
         '200':
-          description: Jobstatus
+          description: Verifikationsstatus
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobStatus'
+                $ref: '#/components/schemas/VerificationRunStatus'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /scaffolding/jobs/{jobId}/artifacts:
+  /audit/reports/{reportId}:
     get:
-      tags: [Artifacts]
-      summary: Listet erzeugte Artefakte eines abgeschlossenen Jobs
-      operationId: listArtifacts
+      tags: [Audit]
+      summary: Liefert ein bereits verifiziertes read-only report.json-Artefakt
+      operationId: getAuditReport
       parameters:
-        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/ReportId'
       responses:
         '200':
-          description: Artefaktliste
+          description: Verifizierter Audit-Report
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArtifactList'
-        '409':
-          description: Job ist noch nicht abgeschlossen
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/AuditReport'
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /scaffolding/jobs/{jobId}/review:
-    post:
-      tags: [Reviews]
-      summary: Human-in-the-loop Entscheidung für den Entwurf
-      operationId: submitReviewDecision
+  /audit/reports/{reportId}/fixtures/mutated:
+    get:
+      tags: [Audit]
+      summary: Liefert die absichtlich mutierte Fixture zum Fail-Safe-Nachweis
+      operationId: getMutatedFixtureResult
       parameters:
-        - $ref: '#/components/parameters/JobId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ReviewDecision'
+        - $ref: '#/components/parameters/ReportId'
       responses:
         '200':
-          description: Entscheidung gespeichert
+          description: Mutationsvergleich gegen die Happy-Path-Evidenz
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReviewReceipt'
-        '400':
-          $ref: '#/components/responses/BadRequest'
+                $ref: '#/components/schemas/MutatedFixtureResult'
         '404':
           $ref: '#/components/responses/NotFound'
 
 components:
   parameters:
-    JobId:
-      name: jobId
+    RunId:
+      name: runId
       in: path
       required: true
-      description: Eindeutige Job-ID
       schema:
         type: string
         format: uuid
+    ReportId:
+      name: reportId
+      in: path
+      required: true
+      schema:
+        type: string
 
   responses:
     BadRequest:
       description: Ungültige Anfrage
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Nicht autorisierte privilegierte Operation
       content:
         application/json:
           schema:
@@ -122,151 +164,225 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    UnprocessableEntity:
+      description: Integritäts- oder Evidenzprüfung fehlgeschlagen
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
 
   schemas:
-    CreateJobRequest:
+    CanonicalizeRequest:
+      type: object
+      required: [payload]
+      properties:
+        payload:
+          description: JSON-Objekt vor JCS-Kanonisierung
+          type: object
+          additionalProperties: true
+
+    CanonicalizeResponse:
+      type: object
+      required: [canonical_json, subject_digest, canonicalization]
+      properties:
+        canonicalization:
+          type: string
+          const: RFC8785-JCS
+        canonical_json:
+          type: string
+        subject_digest:
+          type: string
+          description: BLAKE3- oder kompatibler Subject Digest über die kanonische Darstellung
+        signature_ready:
+          type: boolean
+          default: true
+
+    ValidateRequest:
+      type: object
+      required: [operation, actor, payload]
+      properties:
+        operation:
+          type: string
+          enum: [Validate, DeriveState, Canonicalize, Audit, Commit, Publish, Export, MutateState]
+        actor:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        evidence_required:
+          type: boolean
+          default: false
+
+    ValidateResponse:
+      type: object
+      required: [operation, classification, allowed, deterministic]
+      properties:
+        operation:
+          type: string
+        classification:
+          type: string
+          enum: [ReadOnly, Mutating, Privileged]
+        allowed:
+          type: boolean
+        deterministic:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            type: string
+        evidence_checks:
+          type: array
+          items:
+            type: string
+
+    CreateVerificationRunRequest:
       type: object
       required:
-        - issue_ref
-        - requirement_text
-        - requested_by
+        - commit_sha
+        - branch
+        - artifact_digest
+        - provenance_subject_digest
+        - oidc_identity
+        - live_validation_approved
+        - scope
       properties:
-        issue_ref:
+        commit_sha:
           type: string
-          description: Referenz auf GitHub Issue (z. B. owner/repo#123)
-        requirement_text:
+        branch:
           type: string
-          minLength: 20
-        requested_by:
+        artifact_digest:
           type: string
-          description: User oder Service-Identität
-        constraints:
-          type: object
-          additionalProperties:
-            type: string
-        timeout_minutes:
-          type: integer
-          minimum: 1
-          maximum: 15
-          default: 15
+        provenance_subject_digest:
+          type: string
+        rekor_entry_uuid:
+          type: string
+        oidc_identity:
+          type: string
+        live_validation_approved:
+          type: boolean
+          const: true
+        scope:
+          type: string
+          const: all
 
-    JobAccepted:
+    VerificationRunAccepted:
       type: object
-      required: [job_id, status, submitted_at]
+      required: [run_id, status, verifier]
       properties:
-        job_id:
+        run_id:
           type: string
           format: uuid
         status:
           type: string
           enum: [queued]
-        submitted_at:
+        verifier:
           type: string
-          format: date-time
+          const: kette12-verify.sh
 
-    JobStatus:
+    VerificationRunStatus:
       type: object
-      required:
-        - job_id
-        - status
-        - stage
-        - started_at
+      required: [run_id, status, gate_decision, checks]
       properties:
-        job_id:
+        run_id:
           type: string
           format: uuid
         status:
           type: string
-          enum: [queued, running, waiting_approval, completed, failed, cancelled]
-        stage:
+          enum: [queued, running, passed, failed]
+        gate_decision:
           type: string
-          enum:
-            - normalization
-            - parallel_design
-            - agent_review
-            - consolidation
-            - human_approval
-            - export
-        started_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        findings:
+          enum: [pass, fail]
+        checks:
           type: array
           items:
-            $ref: '#/components/schemas/Finding'
-
-    Finding:
-      type: object
-      required: [type, severity, message]
-      properties:
-        type:
+            $ref: '#/components/schemas/VerificationCheck'
+        report_id:
           type: string
-          enum: [security, quality, consistency]
-        severity:
-          type: string
-          enum: [low, medium, high, critical]
-        message:
-          type: string
-
-    ArtifactList:
-      type: object
-      required: [job_id, artifacts]
-      properties:
-        job_id:
-          type: string
-          format: uuid
-        artifacts:
+        archived_artifacts:
           type: array
           items:
-            $ref: '#/components/schemas/Artifact'
+            type: string
 
-    Artifact:
+    VerificationCheck:
       type: object
-      required: [name, path, sha256]
+      required: [name, passed]
       properties:
         name:
           type: string
           enum:
-            - architecture_summary.json
-            - diagram.mmd
-            - openapi.yaml
-            - traceability_matrix.csv
-            - risk-register.md
-        path:
+            - git_integrity
+            - provenance_matching
+            - rekor_inclusion
+            - oidc_validity
+            - zero_error_exit
+        passed:
+          type: boolean
+        detail:
           type: string
-        sha256:
-          type: string
-          pattern: '^[A-Fa-f0-9]{64}$'
 
-    ReviewDecision:
+    AuditReport:
       type: object
-      required: [decision, reviewer]
+      required: [report_id, generated_at, status, evidence, archive]
       properties:
-        decision:
+        report_id:
           type: string
-          enum: [approve, request_changes]
-        reviewer:
-          type: string
-        comment:
-          type: string
-          maxLength: 4000
-
-    ReviewReceipt:
-      type: object
-      required: [job_id, decision, decided_at]
-      properties:
-        job_id:
-          type: string
-          format: uuid
-        decision:
-          type: string
-          enum: [approve, request_changes]
-        decided_at:
+        generated_at:
           type: string
           format: date-time
+        status:
+          type: string
+          enum: [verified]
+        evidence:
+          type: object
+          required: [commit_sha, artifact_digest, provenance_subject_digest, blake3_root, signature_scheme]
+          properties:
+            commit_sha:
+              type: string
+            artifact_digest:
+              type: string
+            provenance_subject_digest:
+              type: string
+            blake3_root:
+              type: string
+            signature_scheme:
+              type: string
+              enum: [Ed25519]
+        archive:
+          type: object
+          required: [mode, files]
+          properties:
+            mode:
+              type: string
+              const: WORM
+            files:
+              type: array
+              items:
+                type: string
+                enum:
+                  - vault_manifest.json
+                  - blake3_root.json
+                  - state_export.json
+                  - ledger.jsonl
+                  - sig_meta.json
+                  - vault/export/
+
+    MutatedFixtureResult:
+      type: object
+      required: [report_id, mutation_applied, happy_path_valid, mutated_valid]
+      properties:
+        report_id:
+          type: string
+        mutation_applied:
+          type: string
+          example: single-byte vault change
+        happy_path_valid:
+          type: boolean
+          const: true
+        mutated_valid:
+          type: boolean
+          const: false
+        failure_reason:
+          type: string
 
     Error:
       type: object

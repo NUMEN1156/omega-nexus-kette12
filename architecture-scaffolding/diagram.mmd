@@ -1,68 +1,71 @@
-%% Architektur-Scaffolding: Container + Ablauf
+%% NEXUS_11 v0.6.0 + KETTE12 Compliance Baseline
 flowchart LR
-  A[GitHub Issue\n+ Label architecture-scaffolding] --> B[GitHub Actions Workflow]
-  B --> C[Scaffolding Orchestrator]
+  U[User / LLM Intent Producer] --> A[@nexus11/cli-adapter]
+  A --> C[nexus11-core\nRust authoritative core]
+  G[Golden Test Vectors] --> C
 
-  subgraph Agents[7-Rollen Multi-Agenten-System]
-    RA[Requirements Analyst]
-    SA[Solution Architect]
-    API[API Designer]
-    DA[Data Architect]
-    SR[Security Reviewer]
-    QR[Quality Reviewer]
-    HA[Human Approver]
+  C --> J[JCS RFC 8785\nCanonicalization]
+  J --> S[Deterministic state transition]
+  S --> H[Ed25519 signatures\n+ BLAKE3 root]
+
+  subgraph BuildChain[KETTE12 hermetic build + verification]
+    B[Hermetic Builder\nnetwork=none] --> SB[SBOM CycloneDX 1.6]
+    B --> P[in-toto Provenance]
+    B --> O[OIDC identity]
+    P --> V[KETTE12 Verification Gate]
+    O --> V
+    H --> V
+    SB --> V
+    R[Rekor inclusion proof] --> V
   end
 
-  C --> RA
-  RA --> SA
-  RA --> API
-  RA --> DA
-  SA --> SR
-  API --> SR
-  DA --> SR
-  SA --> QR
-  API --> QR
-  DA --> QR
-  SR --> C
-  QR --> C
-  C --> HA
-  HA -->|approved| D[(Artifact Bundle)]
-  HA -->|needs revision| C
+  V -->|pass| W[WORM archive\nchmod 444]
+  V -->|pass| UI[Nexus Command Center\nread-only audit mode]
+  V -->|fail| X[Hard stop\ncontinue-on-error: false]
 
-  D --> E[architecture_summary.json]
-  D --> F[diagram.mmd]
-  D --> G[openapi.yaml]
+  W --> VM[vault_manifest.json]
+  W --> BR[blake3_root.json]
+  W --> SE[state_export.json]
+  W --> LJ[ledger.jsonl]
+  W --> SM[sig_meta.json]
+  W --> VE[vault/export/]
 
-  classDef control fill:#0f172a,color:#fff,stroke:#334155;
-  class B,C,D control;
+  UI --> HP[Happy Path evidence]
+  UI --> MF[Mutated fixture fail-safe]
+
+  classDef trust fill:#0f172a,color:#fff,stroke:#334155;
+  classDef control fill:#052e16,color:#ecfccb,stroke:#166534;
+  class C,V,W trust;
+  class G,B,UI control;
 
 ---
 sequenceDiagram
   autonumber
-  participant U as Stakeholder
-  participant GH as GitHub Issue/Label
-  participant CI as GitHub Actions
-  participant OR as Orchestrator
-  participant RA as Requirements Analyst
-  participant AD as Architect Team
-  participant RV as Security+Quality Reviewer
-  participant HA as Human Approver
-  participant RE as Repository
+  participant I as Intent Producer
+  participant A as @nexus11/cli-adapter
+  participant C as nexus11-core
+  participant T as Golden Test Vectors
+  participant B as Hermetic Builder
+  participant V as Verification Gate
+  participant R as Rekor/OIDC/Provenance
+  participant W as WORM Archive
+  participant U as Nexus Command Center
 
-  U->>GH: Anforderungen einreichen
-  GH->>CI: Trigger bei Label architecture-scaffolding
-  CI->>OR: Start Job (ephemeral, read-only, timeout 15m)
-  OR->>RA: FR/NFR normalisieren
-  RA-->>OR: Strukturierter Requirement-Satz
-  OR->>AD: Paralleles Architektur/API/Daten-Design
-  AD-->>OR: Entwurfsartefakte
-  OR->>RV: Sicherheits- und Qualitätsprüfung
-  RV-->>OR: Findings + Freigabestatus
-  OR->>HA: Konsolidierten Entwurf zur Entscheidung vorlegen
-  alt Freigabe
-    HA-->>OR: Approved
-    OR->>RE: architecture_summary.json, diagram.mmd, openapi.yaml exportieren
-  else Nacharbeit
-    HA-->>OR: Revision required
-    OR->>AD: Rework mit Findings
+  T->>C: Verify input -> JCS -> state transition -> hash/signature
+  I->>A: Submit protocol-relevant action
+  A->>C: Delegate action via typed subprocess
+  C->>C: Enforce operation class and deterministic invariants
+  C-->>A: Canonical state, signatures, BLAKE3 root
+  A-->>I: Return authoritative result
+  B->>R: Produce SBOM, provenance, OIDC identity, inclusion evidence
+  B->>V: Submit artifact digest + build evidence
+  C->>V: Submit subject digest + signed evidence
+  V->>R: Validate provenance correlation and Rekor inclusion
+  alt All checks pass
+    V->>W: Persist compliance artifacts and chmod 444
+    V->>U: Publish read-only report.json evidence
+    U->>U: Render happy path and mutated fixture comparison
+  else Any mismatch
+    V-->>B: Fail closed with exit code != 0
+    V-->>U: Withhold success state
   end
