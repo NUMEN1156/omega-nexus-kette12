@@ -4,18 +4,20 @@ pragma solidity ^0.8.24;
 /// @title OutboxTimelock
 /// @notice L1 landing contract for arche-omega-relayer outbox events.
 ///
-/// The relayer's `EvmSink` submits each outbox payload as raw calldata to this
-/// contract. The `fallback` accepts the bytes, assigns a sequence id and queues
-/// the payload hash behind a fixed timelock. Anyone may `execute` a queued item
-/// once its `eta` has passed by presenting the original payload; the contract
-/// fails closed on unknown ids, hash mismatches, early execution and replays.
+/// The relayer's `EvmSink` submits each outbox payload as an explicit
+/// `queue(bytes)` call from the configured submitter account. The contract
+/// assigns a sequence id and queues the payload hash behind a fixed timelock.
+/// Anyone may `execute` a queued item once its `eta` has passed by presenting
+/// the original payload; the guardian may `cancel` pending items. Unknown ids,
+/// hash mismatches, early execution and replays fail closed.
 contract OutboxTimelock {
-    error EmptyPayload();
+    error ZeroAddress();
+    error NotSubmitter();
+    error NotGuardian();
     error UnknownItem(uint256 id);
     error PayloadMismatch(uint256 id);
     error TimelockNotElapsed(uint256 id, uint256 eta, uint256 nowTs);
     error AlreadyExecuted(uint256 id);
-    error NotGuardian();
 
     event Queued(uint256 indexed id, bytes32 indexed payloadHash, uint256 eta, address submitter, bytes payload);
     event Executed(uint256 indexed id, bytes32 indexed payloadHash, address executor);
@@ -23,31 +25,32 @@ contract OutboxTimelock {
 
     struct Item {
         bytes32 payloadHash;
-        uint64 eta;
+        uint256 eta;
         bool executed;
     }
 
     uint256 public immutable delay;
+    address public immutable submitter;
     address public immutable guardian;
     uint256 public nextId = 1;
     mapping(uint256 => Item) private _items;
 
-    constructor(uint256 delay_, address guardian_) {
+    constructor(uint256 delay_, address submitter_, address guardian_) {
+        if (submitter_ == address(0) || guardian_ == address(0)) revert ZeroAddress();
         delay = delay_;
+        submitter = submitter_;
         guardian = guardian_;
     }
 
-    /// @dev Outbox payloads arrive as bare calldata via `eth_sendTransaction`.
-    fallback() external {
-        _queue(msg.data);
-    }
-
-    receive() external payable {
-        revert EmptyPayload();
-    }
-
+    /// @dev No `fallback`/`receive`: raw calldata that happens to start with a
+    ///      function selector must not be silently re-interpreted.
     function queue(bytes calldata payload) external returns (uint256 id) {
-        return _queue(payload);
+        if (msg.sender != submitter) revert NotSubmitter();
+        id = nextId++;
+        bytes32 payloadHash = keccak256(payload);
+        uint256 eta = block.timestamp + delay;
+        _items[id] = Item({payloadHash: payloadHash, eta: eta, executed: false});
+        emit Queued(id, payloadHash, eta, msg.sender, payload);
     }
 
     function execute(uint256 id, bytes calldata payload) external {
@@ -70,7 +73,7 @@ contract OutboxTimelock {
         emit Cancelled(id, stored.payloadHash, msg.sender);
     }
 
-    function item(uint256 id) external view returns (bytes32 payloadHash, uint64 eta, bool executed) {
+    function item(uint256 id) external view returns (bytes32 payloadHash, uint256 eta, bool executed) {
         Item memory stored = _items[id];
         return (stored.payloadHash, stored.eta, stored.executed);
     }
@@ -78,14 +81,5 @@ contract OutboxTimelock {
     function isReady(uint256 id) external view returns (bool) {
         Item memory stored = _items[id];
         return stored.eta != 0 && !stored.executed && block.timestamp >= stored.eta;
-    }
-
-    function _queue(bytes memory payload) internal returns (uint256 id) {
-        if (payload.length == 0) revert EmptyPayload();
-        id = nextId++;
-        bytes32 payloadHash = keccak256(payload);
-        uint64 eta = uint64(block.timestamp + delay);
-        _items[id] = Item({payloadHash: payloadHash, eta: eta, executed: false});
-        emit Queued(id, payloadHash, eta, msg.sender, payload);
     }
 }

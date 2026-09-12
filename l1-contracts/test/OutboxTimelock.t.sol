@@ -25,29 +25,67 @@ contract OutboxTimelockTest {
 
     function setUp() public {
         vm.warp(1_000_000);
-        timelock = new OutboxTimelock(DELAY, GUARDIAN);
+        timelock = new OutboxTimelock(DELAY, RELAYER, GUARDIAN);
     }
 
-    function _queueViaFallback() internal returns (uint256 id) {
-        id = timelock.nextId();
+    function _queue(bytes memory data) internal returns (uint256 id) {
         vm.prank(RELAYER);
-        (bool ok,) = address(timelock).call(payload);
-        require(ok, "fallback queue failed");
+        return timelock.queue(data);
     }
 
-    function test_fallbackQueuesRawCalldata() public {
+    function test_constructorRejectsZeroAddresses() public {
+        vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.ZeroAddress.selector));
+        new OutboxTimelock(DELAY, address(0), GUARDIAN);
+        vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.ZeroAddress.selector));
+        new OutboxTimelock(DELAY, RELAYER, address(0));
+    }
+
+    function test_queueEmitsAndStoresItem() public {
         vm.expectEmit(true, true, false, true);
         emit Queued(1, keccak256(payload), block.timestamp + DELAY, RELAYER, payload);
-        uint256 id = _queueViaFallback();
-        (bytes32 hash, uint64 eta, bool executed) = timelock.item(id);
+        uint256 id = _queue(payload);
+        (bytes32 hash, uint256 eta, bool executed) = timelock.item(id);
         assertEq(hash, keccak256(payload));
         assertEq(eta, block.timestamp + DELAY);
         require(!executed, "must not be executed");
         assertEq(timelock.nextId(), 2);
     }
 
+    function test_queueRejectsNonSubmitter() public {
+        vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.NotSubmitter.selector));
+        timelock.queue(payload);
+        vm.prank(GUARDIAN);
+        vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.NotSubmitter.selector));
+        timelock.queue(payload);
+    }
+
+    function test_rawCalldataIsRejected() public {
+        vm.prank(RELAYER);
+        (bool ok,) = address(timelock).call(payload);
+        require(!ok, "raw calldata must revert");
+        vm.prank(RELAYER);
+        (ok,) = address(timelock).call("");
+        require(!ok, "empty calldata must revert");
+        assertEq(timelock.nextId(), 1);
+    }
+
+    function test_emptyPayloadIsQueueable() public {
+        uint256 id = _queue("");
+        (bytes32 hash,,) = timelock.item(id);
+        assertEq(hash, keccak256(""));
+    }
+
+    function test_largeDelayDoesNotWrap() public {
+        OutboxTimelock wide = new OutboxTimelock(uint256(type(uint64).max) + 1, RELAYER, GUARDIAN);
+        vm.prank(RELAYER);
+        uint256 id = wide.queue(payload);
+        (, uint256 eta,) = wide.item(id);
+        assertEq(eta, block.timestamp + uint256(type(uint64).max) + 1);
+        require(!wide.isReady(id), "must not be ready");
+    }
+
     function test_executeBeforeEtaFailsClosed() public {
-        uint256 id = _queueViaFallback();
+        uint256 id = _queue(payload);
         uint256 eta = block.timestamp + DELAY;
         vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.TimelockNotElapsed.selector, id, eta, block.timestamp));
         timelock.execute(id, payload);
@@ -57,7 +95,7 @@ contract OutboxTimelockTest {
     }
 
     function test_executeAfterEtaEmitsAndBlocksReplay() public {
-        uint256 id = _queueViaFallback();
+        uint256 id = _queue(payload);
         vm.warp(block.timestamp + DELAY);
         require(timelock.isReady(id), "should be ready at eta");
         vm.expectEmit(true, true, false, true);
@@ -68,7 +106,7 @@ contract OutboxTimelockTest {
     }
 
     function test_executeRejectsWrongPayload() public {
-        uint256 id = _queueViaFallback();
+        uint256 id = _queue(payload);
         vm.warp(block.timestamp + DELAY);
         vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.PayloadMismatch.selector, id));
         timelock.execute(id, hex"deadbeef");
@@ -79,15 +117,8 @@ contract OutboxTimelockTest {
         timelock.execute(42, payload);
     }
 
-    function test_emptyPayloadRejected() public {
-        vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.EmptyPayload.selector));
-        timelock.queue("");
-        (bool ok,) = address(timelock).call("");
-        require(!ok, "empty calldata must revert");
-    }
-
     function test_guardianCancelBlocksExecution() public {
-        uint256 id = _queueViaFallback();
+        uint256 id = _queue(payload);
         vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.NotGuardian.selector));
         timelock.cancel(id);
         vm.prank(GUARDIAN);
@@ -98,8 +129,7 @@ contract OutboxTimelockTest {
     }
 
     function testFuzz_queueExecuteRoundtrip(bytes calldata data, uint32 extra) public {
-        if (data.length == 0) return;
-        uint256 id = timelock.queue(data);
+        uint256 id = _queue(data);
         uint256 eta = block.timestamp + DELAY;
         vm.expectRevert(abi.encodeWithSelector(OutboxTimelock.TimelockNotElapsed.selector, id, eta, block.timestamp));
         timelock.execute(id, data);

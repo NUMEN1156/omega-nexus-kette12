@@ -6,7 +6,7 @@
 #   2. deploy l1-contracts/OutboxTimelock
 #   3. build + start arche-omega-relayer with the EVM sink pointed at the contract
 #   4. start the WebSocket log listener (scripts/ws-event-listener.mjs)
-#   5. publish an outbox payload through the mTLS relay -> EvmSink -> fallback() -> Queued
+#   5. publish an outbox payload through the mTLS relay -> EvmSink -> queue(bytes) -> Queued
 #   6. assert execute() fails closed before eta, advance chain time, execute() -> Executed
 #   7. assert the listener saw both events and the outbox drained
 #
@@ -67,11 +67,11 @@ PIDS+=($!)
 wait_for "anvil rpc" 30 cast chain-id --rpc-url "$RPC_URL"
 
 # ---------------------------------------------------------------- 2. Deploy
-log "building + deploying OutboxTimelock(delay=${TIMELOCK_DELAY}, guardian=${GUARDIAN})"
+log "building + deploying OutboxTimelock(delay=${TIMELOCK_DELAY}, submitter=${DEPLOYER}, guardian=${GUARDIAN})"
 (cd l1-contracts && forge build --silent)
 DEPLOY_JSON="$(cd l1-contracts && forge create src/OutboxTimelock.sol:OutboxTimelock \
   --rpc-url "$RPC_URL" --private-key "$DEPLOYER_KEY" --broadcast --json \
-  --constructor-args "$TIMELOCK_DELAY" "$GUARDIAN")"
+  --constructor-args "$TIMELOCK_DELAY" "$DEPLOYER" "$GUARDIAN")"
 CONTRACT="$(printf '%s' "$DEPLOY_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["deployedTo"])')"
 [[ "$CONTRACT" =~ ^0x[0-9a-fA-F]{40}$ ]] || fail "could not parse deployed address from: $DEPLOY_JSON"
 log "OutboxTimelock deployed at ${CONTRACT}"
