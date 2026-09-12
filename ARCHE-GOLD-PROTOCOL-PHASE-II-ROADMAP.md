@@ -52,6 +52,7 @@ Ausbau von `core-vault-node` und `jusseisen-vault-node` auf fünf globale Kontin
 - Regionale Segmentierung der MPC-Schlüsselverteilung entlang Latenz- und Souveränitätsanforderungen.
 - Region-übergreifende Replikation mit konsistenter Zustandsführung über `nexus-eleven-core`.
 - Geplante Konsistenz- und Recovery-Übungen unter Partitionierungsbedingungen.
+- Ausführungsartefakt: `architecture-scaffolding/q4-multi-region-enclave-baseline.json`.
 
 ### Decision-Gate-Kriterien (Ende Q4)
 - Verifizierte interkontinentale Zustands-Synchronisation über `nexus-eleven-core` unter **15 ms**.
