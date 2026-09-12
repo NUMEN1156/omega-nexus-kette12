@@ -231,9 +231,7 @@ components:
           items:
             type: string
         evidence_checks:
-          type: array
-          items:
-            $ref: '#/components/schemas/EvidenceCheckName'
+          $ref: '#/components/schemas/EvidenceChecks'
 
     EvidenceCheckName:
       type: string
@@ -242,6 +240,17 @@ components:
         - privilege_enforcement
         - signature_readiness
         - evidence_required
+
+    EvidenceChecks:
+      type: object
+      required: [applicable, checks]
+      properties:
+        applicable:
+          type: boolean
+        checks:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvidenceCheckName'
 
     CreateVerificationRunRequest:
       type: object
@@ -286,7 +295,7 @@ components:
 
     VerificationRunStatus:
       type: object
-      required: [run_id, status, gate_decision, checks]
+      required: [run_id, status, checks]
       properties:
         run_id:
           type: string
@@ -297,6 +306,7 @@ components:
         gate_decision:
           type: string
           enum: [pass, fail]
+          description: Present only after the verification run reaches a terminal state.
         checks:
           type: array
           items:
