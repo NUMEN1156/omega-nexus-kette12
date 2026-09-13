@@ -74,7 +74,7 @@ jobs:
 
       - name: Run KETTE12 Pre-Flight
         run: |
-          if [[ -x scripts/onboarding-check.sh && -d vendor && -f .cargo/config.toml ]]; then
+          if [[ -f scripts/onboarding-check.sh && -d vendor && -f .cargo/config.toml ]]; then
             chmod +x scripts/onboarding-check.sh
             ./scripts/onboarding-check.sh
           else
