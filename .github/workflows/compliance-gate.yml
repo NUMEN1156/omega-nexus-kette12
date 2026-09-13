@@ -201,7 +201,7 @@ jobs:
               --bundle "${BUNDLE_PATH}" \
               "${MANIFEST_PATH}"
           else
-            echo '{"mode":"DRY_RUN_STRUCTURAL","attestation":"skipped"}' > "${BUNDLE_PATH}"
+            echo "DRY_RUN_STRUCTURAL" > "${{ env.EVIDENCE_DIR }}/attestation.mode"
           fi
 
       - name: Run Deterministic Verification (kette12-verify.sh)
@@ -216,10 +216,15 @@ jobs:
               --repo "${{ github.repository }}" \
               --ref "${{ github.ref_name }}"
           else
+            if [[ "${MODE}" == "STRICT_LIVE" ]]; then
+              echo "::error::scripts/kette12-verify.sh is required in STRICT_LIVE mode."
+              exit 1
+            fi
+
             echo "::warning::scripts/kette12-verify.sh not found, running structural fallback verification."
             test -s "${{ env.EVIDENCE_DIR }}/canonical_manifest.json"
-            test -s "${{ env.EVIDENCE_DIR }}/rekor-bundle.json"
             test -s "${{ env.EVIDENCE_DIR }}/sealed_hashes.sha256"
+            test -s "${{ env.EVIDENCE_DIR }}/attestation.mode"
           fi
 
       - name: Output Gate Confirmation
