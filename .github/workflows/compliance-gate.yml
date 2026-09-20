@@ -72,6 +72,12 @@ jobs:
           format: spdx-json
           output-file: '${{ env.EVIDENCE_DIR }}/sbom.spdx.json'
 
+      - name: Vendor Locked Cargo Dependencies (offline build input)
+        run: |
+          mkdir -p .cargo
+          cargo vendor --locked vendor > .cargo/config.toml
+          sha256sum Cargo.lock > "${{ env.EVIDENCE_DIR }}/cargo.lock.sha256"
+
       - name: Run KETTE12 Pre-Flight
         run: |
           if [[ -f scripts/onboarding-check.sh && -d vendor && -f .cargo/config.toml ]]; then
@@ -80,12 +86,6 @@ jobs:
           else
             echo "::notice::Skipping onboarding pre-flight (optional assets not present)."
           fi
-
-      - name: Vendor Locked Cargo Dependencies (offline build input)
-        run: |
-          mkdir -p .cargo
-          cargo vendor --locked vendor > .cargo/config.toml
-          sha256sum Cargo.lock > "${{ env.EVIDENCE_DIR }}/cargo.lock.sha256"
 
       - name: Pre-Pull Immutable Base Images
         run: |
