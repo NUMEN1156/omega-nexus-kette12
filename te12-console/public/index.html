@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TE12 // Industrial Console</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">TE12 <span class="dim">//</span> NEUROLUMEN LOGIC CORE</div>
+  <div class="status">
+    <span class="lbl">LINK</span> <span id="link" class="pill warn">CONNECTING</span>
+    <span class="lbl">TICK</span> <b id="tick">—</b>
+    <span class="lbl">WORM</span> <b id="wormLen">—</b>
+    <span class="lbl">HEAD</span> <code id="head" class="hash">—</code>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="panel span2">
+    <div class="ph"><span class="lbl">01 // PULSE — ENTROPIE-TRAJEKTORIE</span><span id="entropy" class="big">—</span></div>
+    <canvas id="chart" width="900" height="220"></canvas>
+    <div class="row wrap" id="stateBars"></div>
+  </section>
+
+  <section class="panel">
+    <div class="ph"><span class="lbl">02 // TENSOR-LABOR</span></div>
+    <div class="row">
+      <input id="tenant" value="TE12-CORE" spellcheck="false" aria-label="Tenant">
+      <button id="btnStep">STEP</button>
+      <button id="btnStep10">×10</button>
+    </div>
+    <textarea id="matrix" rows="8" spellcheck="false" aria-label="Matrix"></textarea>
+    <div class="row">
+      <button id="btnIdentity" class="ghost">IDENTITY</button>
+      <button id="btnShift" class="ghost">SHIFT</button>
+      <button id="btnApply">APPLY MATRIX</button>
+    </div>
+    <div class="row">
+      <input id="seed" type="number" value="12" aria-label="Seed">
+      <button id="btnReset" class="ghost">RESET SEED</button>
+    </div>
+    <div class="lbl">DIGEST</div><code id="digest" class="hash full">—</code>
+    <div id="labMsg" class="msg"></div>
+  </section>
+
+  <section class="panel">
+    <div class="ph"><span class="lbl">03 // AUDITOR — KETTE12 CROSS-VALIDATION</span></div>
+    <div class="row">
+      <input id="tA" value="NODE-A" aria-label="Tenant A"><input id="tB" value="NODE-B" aria-label="Tenant B">
+    </div>
+    <input id="subject" value="tensor-snapshot" aria-label="Subject">
+    <input id="dA" placeholder="digest A (64 hex)" spellcheck="false" aria-label="Digest A">
+    <input id="dB" placeholder="digest B (64 hex)" spellcheck="false" aria-label="Digest B">
+    <div class="row">
+      <button id="btnFill" class="ghost">USE CURRENT</button>
+      <button id="btnCross">CROSS-VALIDATE</button>
+    </div>
+    <div id="crossResult" class="msg"></div>
+    <div class="ph"><span class="lbl">MATRIX</span><span id="matrixTotals" class="dim"></span></div>
+    <table id="pairs"><thead><tr><th>PAIR</th><th>VERIFIED</th><th>DIVERGENT</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="panel span2">
+    <div class="ph">
+      <span class="lbl">04 // WORM AUDIT LAYER — SHA3-256 CHAIN</span>
+      <span class="row">
+        <select id="filter" aria-label="Filter"><option value="">ALL TENANTS</option></select>
+        <button id="btnVerify">VERIFY CHAIN</button>
+        <span id="verifyResult" class="pill dim">UNVERIFIED</span>
+      </span>
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+<script src="/app.js"></script>
+</body>
+</html>
