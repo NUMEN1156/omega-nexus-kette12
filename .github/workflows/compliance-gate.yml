@@ -81,9 +81,15 @@ jobs:
             echo "::notice::Skipping onboarding pre-flight (optional assets not present)."
           fi
 
+      - name: Vendor Locked Cargo Dependencies (offline build input)
+        run: |
+          mkdir -p .cargo
+          cargo vendor --locked vendor > .cargo/config.toml
+          sha256sum Cargo.lock > "${{ env.EVIDENCE_DIR }}/cargo.lock.sha256"
+
       - name: Pre-Pull Immutable Base Images
         run: |
-          docker pull rust:1.82.0-bookworm@sha256:d9c3c6f1264a547d84560e06ffd79ed7a799ce0bff0980b26cf10d29af888377
+          docker pull rust:1.90.0-bookworm@sha256:3914072ca0c3b8aad871db9169a651ccfce30cf58303e5d6f2db16d1d8a7e58f
           docker pull debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
       - name: Execute Hermetic Container Build (--network=none)
