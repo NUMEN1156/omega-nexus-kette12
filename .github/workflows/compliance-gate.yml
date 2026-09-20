@@ -114,21 +114,7 @@ jobs:
               --source-date-epoch "${{ env.SOURCE_DATE_EPOCH }}"
           else
             echo "::warning::tools/make_manifest.py not found, generating deterministic fallback manifest."
-            python3 - <<'PY'
-            import json
-            import os
-            from pathlib import Path
-
-            evidence_dir = Path(os.environ["EVIDENCE_DIR"])
-            manifest = {
-                "commit": os.environ["COMMIT_SHA"],
-                "image_digest": os.environ["IMAGE_DIGEST"],
-                "source_date_epoch": os.environ["SOURCE_DATE_EPOCH"],
-                "sbom_path": str(evidence_dir / "sbom.spdx.json"),
-            }
-            out = evidence_dir / "canonical_manifest.json"
-            out.write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
-            PY
+            python3 -c 'import json, os; from pathlib import Path; d=Path(os.environ["EVIDENCE_DIR"]); m={"commit":os.environ["COMMIT_SHA"],"image_digest":os.environ["IMAGE_DIGEST"],"source_date_epoch":os.environ["SOURCE_DATE_EPOCH"],"sbom_path":str(d / "sbom.spdx.json")}; (d / "canonical_manifest.json").write_text(json.dumps(m, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")'
           fi
 
       - name: Seal Evidence Artifacts (TOCTOU Protection)
