@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1
+# Hermetic build: runs under `docker build --network none`, so all crates must be
+# present in the build context under vendor/ with .cargo/config.toml pointing to it
+# (see .github/workflows/compliance-gate.yml).
+FROM rust:1.90.0-bookworm@sha256:3914072ca0c3b8aad871db9169a651ccfce30cf58303e5d6f2db16d1d8a7e58f AS builder
+ARG SOURCE_DATE_EPOCH=0
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH} \
+    CARGO_NET_OFFLINE=true \
+    CARGO_INCREMENTAL=0 \
+    RUSTFLAGS="--remap-path-prefix=/app=/build -C strip=symbols"
+WORKDIR /app
+COPY Cargo.toml Cargo.lock ./
+COPY .cargo ./.cargo
+COPY vendor ./vendor
+COPY arche-omega-relayer ./arche-omega-relayer
+RUN cargo build --release --locked --offline --frozen --workspace --bins
+
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+WORKDIR /app
+COPY --from=builder /app/target/release/arche-omega-relayer /usr/local/bin/relay
+COPY --from=builder /app/target/release/clap_provider /usr/local/bin/clap_provider
+RUN mkdir -p /app/certs /app/data
+EXPOSE 8080 9090
+ENTRYPOINT ["/usr/local/bin/relay"]

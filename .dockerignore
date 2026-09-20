@@ -1,0 +1,8 @@
+target/
+.git/
+.e2e-anvil/
+l1-contracts/out/
+l1-contracts/cache/
+node_modules/
+te12-console/data/
+brainfish-swarm/**/__pycache__/

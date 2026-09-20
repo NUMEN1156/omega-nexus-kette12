@@ -72,6 +72,12 @@ jobs:
           format: spdx-json
           output-file: '${{ env.EVIDENCE_DIR }}/sbom.spdx.json'
 
+      - name: Vendor Locked Cargo Dependencies (offline build input)
+        run: |
+          mkdir -p .cargo
+          cargo vendor --locked vendor > .cargo/config.toml
+          sha256sum Cargo.lock > "${{ env.EVIDENCE_DIR }}/cargo.lock.sha256"
+
       - name: Run KETTE12 Pre-Flight
         run: |
           if [[ -f scripts/onboarding-check.sh && -d vendor && -f .cargo/config.toml ]]; then
@@ -83,7 +89,7 @@ jobs:
 
       - name: Pre-Pull Immutable Base Images
         run: |
-          docker pull rust:1.82.0-bookworm@sha256:d9c3c6f1264a547d84560e06ffd79ed7a799ce0bff0980b26cf10d29af888377
+          docker pull rust:1.90.0-bookworm@sha256:3914072ca0c3b8aad871db9169a651ccfce30cf58303e5d6f2db16d1d8a7e58f
           docker pull debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
 
       - name: Execute Hermetic Container Build (--network=none)
@@ -108,21 +114,7 @@ jobs:
               --source-date-epoch "${{ env.SOURCE_DATE_EPOCH }}"
           else
             echo "::warning::tools/make_manifest.py not found, generating deterministic fallback manifest."
-            python3 - <<'PY'
-            import json
-            import os
-            from pathlib import Path
-
-            evidence_dir = Path(os.environ["EVIDENCE_DIR"])
-            manifest = {
-                "commit": os.environ["COMMIT_SHA"],
-                "image_digest": os.environ["IMAGE_DIGEST"],
-                "source_date_epoch": os.environ["SOURCE_DATE_EPOCH"],
-                "sbom_path": str(evidence_dir / "sbom.spdx.json"),
-            }
-            out = evidence_dir / "canonical_manifest.json"
-            out.write_text(json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
-            PY
+            python3 -c 'import json, os; from pathlib import Path; d=Path(os.environ["EVIDENCE_DIR"]); m={"commit":os.environ["COMMIT_SHA"],"image_digest":os.environ["IMAGE_DIGEST"],"source_date_epoch":os.environ["SOURCE_DATE_EPOCH"],"sbom_path":str(d / "sbom.spdx.json")}; (d / "canonical_manifest.json").write_text(json.dumps(m, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")'
           fi
 
       - name: Seal Evidence Artifacts (TOCTOU Protection)
