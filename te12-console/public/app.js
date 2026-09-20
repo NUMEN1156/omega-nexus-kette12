@@ -72,7 +72,7 @@ function addEntry(e) {
   }
   const f = $("#filter").value;
   if (!f || e.tenant === f) $("#log").insertAdjacentHTML("afterbegin", entryRow(e, true));
-  $("#wormLen").textContent = e.seq + 1;
+  $("#wormLen").textContent = e.seq;
   $("#head").textContent = short(e.hash); $("#head").title = e.hash;
 }
 
