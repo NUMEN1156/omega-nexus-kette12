@@ -56,6 +56,9 @@ done
 [[ -d "${EVIDENCE_DIR}" ]] || die "evidence dir '${EVIDENCE_DIR}' does not exist"
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required"
+if [[ "${MODE}" == "strict" ]]; then
+  command -v cosign >/dev/null 2>&1 || die "cosign is required in --strict mode"
+fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EVIDENCE_DIR="$(cd "${EVIDENCE_DIR}" && pwd)"
@@ -76,7 +79,7 @@ else
   else
     fail "sealed_hashes.sha256 does not match evidence contents"
   fi
-  for required in canonical_manifest.json image.digest; do
+  for required in canonical_manifest.json image.digest sbom.spdx.json cargo.lock.sha256; do
     if ! grep -qE "[[:space:]]\*?${required}\$" "${SEALED}"; then
       fail "${required} is not covered by sealed_hashes.sha256"
     fi
@@ -95,7 +98,7 @@ else
 import json, sys
 path = sys.argv[1]
 raw = open(path, "rb").read()
-data = json.loads(raw)
+data = json.loads(raw, parse_constant=lambda c: sys.exit("manifest contains non-JSON constant " + c))
 if not isinstance(data, dict):
     sys.exit("manifest is not a JSON object")
 missing = [k for k in ("commit", "image_digest", "source_date_epoch") if not data.get(k)]
@@ -105,8 +108,22 @@ try:
     import jcs  # RFC 8785 implementation, installed by the workflow
     canonical = jcs.canonicalize(data)
 except ImportError:
+    # Without the jcs module, json.dumps is byte-identical to RFC 8785 only for
+    # objects of strings, integers, booleans and null with BMP-only keys.
+    def walk(v):
+        if isinstance(v, float):
+            sys.exit("manifest contains a float; python module 'jcs' is required to canonicalize it")
+        if isinstance(v, dict):
+            for k, x in v.items():
+                if any(ord(ch) > 0xFFFF for ch in k):
+                    sys.exit("manifest key outside the BMP; python module 'jcs' is required")
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    walk(data)
     canonical = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-if raw.rstrip(b"\n") != canonical:
+if raw not in (canonical, canonical + b"\n"):
     sys.exit("manifest is not in canonical JCS form")
 print(data["commit"])
 print(data["image_digest"])
@@ -180,7 +197,10 @@ fi
 # --- 6. Attestation ---------------------------------------------------------
 log "[6/6] Attestation (${MODE})"
 verify_bundle() {
-  local identity_re="^https://github\\.com/${REPO}/\\.github/workflows/[^@]+@refs/(heads|tags)/${REF}\$"
+  local repo_re ref_re identity_re
+  repo_re="$(printf '%s' "${REPO}" | sed -e 's/[][\.*^$+?(){}|]/\\&/g')"
+  ref_re="$(printf '%s' "${REF}" | sed -e 's/[][\.*^$+?(){}|]/\\&/g')"
+  identity_re="^https://github\\.com/${repo_re}/\\.github/workflows/[^@]+@refs/(heads|tags)/${ref_re}\$"
   if cosign verify-blob \
       --bundle "${BUNDLE}" \
       --certificate-oidc-issuer "${OIDC_ISSUER}" \
