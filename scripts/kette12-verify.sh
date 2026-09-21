@@ -111,8 +111,8 @@ except ImportError:
     # Without the jcs module, json.dumps is byte-identical to RFC 8785 only for
     # objects of strings, integers, booleans and null with BMP-only keys.
     def walk(v):
-        if isinstance(v, float):
-            sys.exit("manifest contains a float; python module 'jcs' is required to canonicalize it")
+        if isinstance(v, float) or (isinstance(v, int) and not isinstance(v, bool) and abs(v) > 2**53 - 1):
+            sys.exit("manifest contains a non-interoperable number; python module 'jcs' is required to canonicalize it")
         if isinstance(v, dict):
             for k, x in v.items():
                 if any(ord(ch) > 0xFFFF for ch in k):
