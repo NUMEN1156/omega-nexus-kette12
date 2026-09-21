@@ -63,7 +63,11 @@
     },
     {
       "name": "diagram.mmd",
-      "purpose": "Visualisierung von Container-Sicht und End-to-End-Interaktion."
+      "purpose": "Visualisierung der Container-Sicht (Flowchart)."
+    },
+    {
+      "name": "sequence.mmd",
+      "purpose": "Visualisierung der End-to-End-Interaktion (Sequenzdiagramm)."
     },
     {
       "name": "openapi.yaml",

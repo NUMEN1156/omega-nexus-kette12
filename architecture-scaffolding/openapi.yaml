@@ -5,12 +5,20 @@ info:
   description: |
     API zur Orchestrierung eines Multi-Agenten-Workflows, der aus Anforderungen
     verifizierbare Architekturartefakte erzeugt.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
 servers:
   - url: https://api.omega-nexus.local/v1
+security:
+  - bearerAuth: []
 tags:
   - name: Jobs
+    description: Lebenszyklus von Scaffolding-Jobs
   - name: Artifacts
+    description: Abruf erzeugter Artefakte
   - name: Reviews
+    description: Human-in-the-loop Freigabeentscheidungen
 paths:
   /scaffolding/jobs:
     post:
@@ -97,8 +105,20 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Job wartet nicht auf Freigabe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   parameters:
     JobId:
       name: jobId
@@ -169,8 +189,7 @@ components:
       required:
         - job_id
         - status
-        - stage
-        - started_at
+        - submitted_at
       properties:
         job_id:
           type: string
@@ -187,6 +206,9 @@ components:
             - consolidation
             - human_approval
             - export
+        submitted_at:
+          type: string
+          format: date-time
         started_at:
           type: string
           format: date-time
@@ -232,9 +254,8 @@ components:
           enum:
             - architecture_summary.json
             - diagram.mmd
+            - sequence.mmd
             - openapi.yaml
-            - traceability_matrix.csv
-            - risk-register.md
         path:
           type: string
         sha256:

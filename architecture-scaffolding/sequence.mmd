@@ -1,0 +1,30 @@
+%% Architektur-Scaffolding: End-to-End-Ablauf
+sequenceDiagram
+  autonumber
+  participant U as Stakeholder
+  participant GH as GitHub Issue/Label
+  participant CI as GitHub Actions
+  participant OR as Orchestrator
+  participant RA as Requirements Analyst
+  participant AD as Architect Team
+  participant RV as Security+Quality Reviewer
+  participant HA as Human Approver
+  participant RE as Repository
+
+  U->>GH: Anforderungen einreichen
+  GH->>CI: Trigger bei Label architecture-scaffolding
+  CI->>OR: Start Job (ephemeral, read-only, timeout 15m)
+  OR->>RA: FR/NFR normalisieren
+  RA-->>OR: Strukturierter Requirement-Satz
+  OR->>AD: Paralleles Architektur/API/Daten-Design
+  AD-->>OR: Entwurfsartefakte
+  OR->>RV: Sicherheits- und Qualitätsprüfung
+  RV-->>OR: Findings + Freigabestatus
+  OR->>HA: Konsolidierten Entwurf zur Entscheidung vorlegen
+  alt Freigabe
+    HA-->>OR: Approved
+    OR->>RE: architecture_summary.json, diagram.mmd, sequence.mmd, openapi.yaml exportieren
+  else Nacharbeit
+    HA-->>OR: Revision required
+    OR->>AD: Rework mit Findings
+  end
