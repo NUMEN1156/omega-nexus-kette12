@@ -47,8 +47,9 @@ jobs:
           ./resolve-pr32-merge.sh "$GITHUB_WORKSPACE" --pr "$PR_NUMBER" --no-commit --no-comment
           python3 -m json.tool architecture-scaffolding/architecture_summary.json >/dev/null
           redocly lint architecture-scaffolding/openapi.yaml
-          mmdc -i architecture-scaffolding/diagram.mmd -o /tmp/diagram.svg
-          mmdc -i architecture-scaffolding/sequence.mmd -o /tmp/sequence.svg
+          printf '%s\n' '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > /tmp/puppeteer-config.json
+          mmdc -p /tmp/puppeteer-config.json -i architecture-scaffolding/diagram.mmd -o /tmp/diagram.svg
+          mmdc -p /tmp/puppeteer-config.json -i architecture-scaffolding/sequence.mmd -o /tmp/sequence.svg
           cargo fmt --manifest-path arche-omega-relayer/Cargo.toml --all -- --check
           cargo check --manifest-path arche-omega-relayer/Cargo.toml
           cargo test --manifest-path arche-omega-relayer/Cargo.toml

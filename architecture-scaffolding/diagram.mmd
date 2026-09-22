@@ -1,15 +1,15 @@
 %% NEXUS_11 v0.6.0 + KETTE12 Compliance Baseline
 flowchart LR
   U[User / LLM Intent Producer] --> A["@nexus11/cli-adapter"]
-  A --> C[nexus11-core\nRust authoritative core]
+  A --> C[nexus11-core<br/>Rust authoritative core]
   G[Golden Test Vectors] --> C
 
-  C --> J[JCS RFC 8785\nCanonicalization]
+  C --> J[JCS RFC 8785<br/>Canonicalization]
   J --> S[Deterministic state transition]
-  S --> H[Ed25519 signatures\n+ BLAKE3 root]
+  S --> H[Ed25519 signatures<br/>+ BLAKE3 root]
 
   subgraph BuildChain[KETTE12 hermetic build + verification]
-    B[Hermetic Builder\nnetwork=none] --> SB[SBOM CycloneDX 1.6]
+    B[Hermetic Builder<br/>network=none] --> SB[SBOM CycloneDX 1.6]
     B --> P[in-toto Provenance]
     B --> O[OIDC identity]
     P --> V[KETTE12 Verification Gate]
@@ -19,9 +19,9 @@ flowchart LR
     R[Rekor inclusion proof] --> V
   end
 
-  V -->|pass only| W[WORM archive\nchmod 444]
-  V -->|pass only| UI[Nexus Command Center\nread-only audit mode]
-  V -->|fail| X[Hard stop\ncontinue-on-error: false\nno UI publish, no archive]
+  V -->|pass only| W[WORM archive<br/>chmod 444]
+  V -->|pass only| UI[Nexus Command Center<br/>read-only audit mode]
+  V -->|fail| X[Hard stop<br/>continue-on-error: false<br/>no UI publish, no archive]
 
   W --> VM[vault_manifest.json]
   W --> BR[blake3_root.json]
@@ -37,35 +37,3 @@ flowchart LR
   classDef control fill:#052e16,color:#ecfccb,stroke:#166534;
   class C,V,W trust;
   class G,B,UI control;
-
----
-sequenceDiagram
-  autonumber
-  participant I as Intent Producer
-  participant A as @nexus11/cli-adapter
-  participant C as nexus11-core
-  participant T as Golden Test Vectors
-  participant B as Hermetic Builder
-  participant V as Verification Gate
-  participant R as Rekor/OIDC/Provenance
-  participant W as WORM Archive
-  participant U as Nexus Command Center
-
-  T->>C: Verify input -> JCS -> state transition -> hash/signature
-  I->>A: Submit protocol-relevant action
-  A->>C: Delegate action via typed subprocess
-  C->>C: Enforce operation class and deterministic invariants
-  C-->>A: Canonical state, signatures, BLAKE3 root
-  A-->>I: Return authoritative result
-  B->>R: Produce SBOM, provenance, OIDC identity, inclusion evidence
-  B->>V: Submit artifact digest + build evidence
-  C->>V: Submit subject digest + signed evidence
-  V->>R: Validate provenance correlation and Rekor inclusion
-  alt All checks pass
-    V->>W: Persist compliance artifacts and chmod 444
-    V->>U: Publish read-only report.json evidence
-    U->>U: Render happy path and mutated fixture comparison
-  else Any mismatch
-    V-->>B: Fail closed with exit code != 0
-    V-->>U: Withhold success state
-  end
