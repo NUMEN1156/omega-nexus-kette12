@@ -1,0 +1,39 @@
+name: GitHub Agent Health
+
+on:
+  schedule:
+    - cron: '7 5 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect repository health
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo '# GitHub Agent health report'
+            echo
+            echo '## Recent workflow runs'
+            gh run list --repo "$GITHUB_REPOSITORY" --limit 25
+            echo
+            echo '## Open pull requests'
+            gh pr list --repo "$GITHUB_REPOSITORY" --state open
+            echo
+            echo '## Open issues'
+            gh issue list --repo "$GITHUB_REPOSITORY" --state open
+          } | tee /tmp/health-report.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: github-agent-health-${{ github.run_id }}
+          path: /tmp/health-report.md

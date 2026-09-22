@@ -1,0 +1,30 @@
+name: GitHub Agent Security Audit
+
+on:
+  schedule:
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/**', 'Dockerfile*', '**/Cargo.toml', '**/Cargo.lock']
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL scan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript, python, rust]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/autobuild@v3
+        continue-on-error: true
+      - uses: github/codeql-action/analyze@v3

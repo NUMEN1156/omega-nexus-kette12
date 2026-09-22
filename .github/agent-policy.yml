@@ -1,0 +1,32 @@
+version: 1
+mode: guarded-autonomy
+repository: NUMEN1156/omega-nexus-kette12
+allowed:
+  - read_repository
+  - read_issues
+  - read_pull_requests
+  - create_branch
+  - create_pull_request
+  - update_feature_branch
+  - add_labels
+  - create_or_update_comments
+  - run_tests
+  - rerun_failed_workflows
+  - create_draft_release
+approval_required:
+  - merge_into_main
+  - publish_release
+  - publish_package
+  - update_branch_protection
+  - update_workflow_permissions
+  - modify_webhooks
+  - modify_deployments
+blocked:
+  - read_secrets
+  - write_secrets
+  - delete_repository
+  - delete_organization
+  - change_billing
+  - expose_tokens
+  - bypass_required_checks
+  - fabricate_check_status

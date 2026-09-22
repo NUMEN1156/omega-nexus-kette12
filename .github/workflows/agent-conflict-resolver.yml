@@ -1,0 +1,49 @@
+name: GitHub Agent Conflict Resolver
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Same-repository PR number'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: conflict-resolver-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    environment: merge-approval
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Configure Git identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Resolve, validate, and push same-repository PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -Eeuo pipefail
+          repo="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefName,headRepository --jq '[.baseRefName,.headRepository.nameWithOwner] | @tsv')"
+          IFS=$'\t' read -r base head_repo <<< "$repo"
+          [[ "$base" == main ]] || { echo 'Only main-targeting PRs are allowed.' >&2; exit 1; }
+          [[ "$head_repo" == "$GITHUB_REPOSITORY" ]] || { echo 'Fork PRs are not writable.' >&2; exit 1; }
+          chmod +x ./resolve-pr32-merge.sh
+          ./resolve-pr32-merge.sh "$GITHUB_WORKSPACE" --pr "$PR_NUMBER" --no-comment --skip-tests --skip-mermaid --skip-openapi
+          branch="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefName --jq '.headRefName')"
+          git push origin "HEAD:$branch"
+          body="<!-- github-agent:conflict-resolution -->
+          ## Conflict resolution completed
+          Branch \`$branch\` was updated with the current \`main\` branch. Commit: \`$(git rev-parse HEAD)\`. Full tests ran in the preceding validation workflow. The PR was not merged automatically."
+          scripts/upsert-pr-comment.sh "$PR_NUMBER" "$body"

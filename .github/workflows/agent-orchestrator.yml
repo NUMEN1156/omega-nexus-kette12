@@ -1,0 +1,74 @@
+name: GitHub Agent Orchestrator
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: agent-orchestrator-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.meta.outputs.pr_number }}
+      same_repo: ${{ steps.meta.outputs.same_repo }}
+    steps:
+      - id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_PR: ${{ inputs.pr_number }}
+        run: |
+          set -Eeuo pipefail
+          pr="${INPUT_PR:-${{ github.event.pull_request.number }}}"
+          head_repo="$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json headRepository --jq '.headRepository.nameWithOwner')"
+          same_repo=false; [[ "$head_repo" == "$GITHUB_REPOSITORY" ]] && same_repo=true
+          echo "pr_number=$pr" >> "$GITHUB_OUTPUT"
+          echo "same_repo=$same_repo" >> "$GITHUB_OUTPUT"
+
+  test-agent:
+    needs: route
+    uses: ./.github/workflows/agent-test.yml
+    with:
+      pr_number: ${{ needs.route.outputs.pr_number }}
+
+  comment:
+    needs: [route, test-agent]
+    if: always() && needs.route.outputs.same_repo == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          sparse-checkout: scripts
+      - name: Upsert test report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.route.outputs.pr_number }}
+          RESULT: ${{ needs.test-agent.result }}
+          STATUS: ${{ needs.test-agent.outputs.status }}
+          SUMMARY: ${{ needs.test-agent.outputs.summary }}
+        run: |
+          set -Eeuo pipefail
+          body="<!-- github-agent:test-report -->
+          ## GitHub Agent test report
+          **Result:** ${STATUS:-$RESULT}
+
+          ${SUMMARY:-No summary returned.}
+
+          Validation only: no push, merge, deletion, secret, permission, or billing change was performed."
+          scripts/upsert-pr-comment.sh "$PR_NUMBER" "$body"
