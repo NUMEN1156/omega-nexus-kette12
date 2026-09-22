@@ -178,12 +178,12 @@ else
   echo "Resolving known conflicts using the current main model plus semantic artifact split."
 fi
 
-# The current main branch is authoritative for the compliance architecture and
-# OpenAPI model. The PR's useful Mermaid fix is applied separately below.
+# Keep the PR's OpenAPI contract for validation. The setup PR intentionally
+# carries the lint fix; replacing it with main would validate the old baseline.
+# Known architecture files remain based on the current main model.
 git restore --source="$REMOTE/$BASE_BRANCH" -- \
   architecture-scaffolding/architecture_summary.json \
-  architecture-scaffolding/diagram.mmd \
-  architecture-scaffolding/openapi.yaml
+  architecture-scaffolding/diagram.mmd
 
 log "Splitting the current main Mermaid document into flowchart and sequence files"
 python3 - "$REPO_DIR" <<'PY'
