@@ -2,6 +2,8 @@ openapi: 3.1.0
 info:
   title: NEXUS_11 Verification & Compliance API
   version: 0.6.0
+  license:
+    name: Proprietary
   description: |
     API-Verträge für den autoritativen Kern, das KETTE12 Verification Gate und
     die read-only Bereitstellung verifizierter Audit-Evidenz.
@@ -10,8 +12,13 @@ servers:
     description: Verifizierte Compliance-Umgebung
 tags:
   - name: Core
+    description: Autoritative read-only and policy-gated core operations.
   - name: Verification
+    description: KETTE12 verification-run lifecycle and gate decisions.
   - name: Audit
+    description: Read-only access to verified audit evidence and fixtures.
+security:
+  - bearerAuth: []
 paths:
   /core/canonicalize:
     post:
@@ -130,6 +137,11 @@ paths:
           $ref: '#/components/responses/NotFound'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     RunId:
       name: runId
