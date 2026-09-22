@@ -53,7 +53,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           sparse-checkout: scripts
       - name: Upsert test report
         env:
