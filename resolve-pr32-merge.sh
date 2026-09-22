@@ -264,17 +264,24 @@ fi
 
 if ((RUN_MERMAID)); then
   log "Rendering Mermaid diagrams"
+  PUPPETEER_CONFIG="$(mktemp)"
+  cat > "$PUPPETEER_CONFIG" <<'JSON'
+{"args":["--no-sandbox","--disable-setuid-sandbox"]}
+JSON
   if command -v mmdc >/dev/null 2>&1; then
-    mmdc -i architecture-scaffolding/diagram.mmd -o /tmp/omega-diagram.svg
-    mmdc -i architecture-scaffolding/sequence.mmd -o /tmp/omega-sequence.svg
+    mmdc -p "$PUPPETEER_CONFIG" -i architecture-scaffolding/diagram.mmd -o /tmp/omega-diagram.svg
+    mmdc -p "$PUPPETEER_CONFIG" -i architecture-scaffolding/sequence.mmd -o /tmp/omega-sequence.svg
   elif command -v npx >/dev/null 2>&1; then
     npx --yes @mermaid-js/mermaid-cli \
+      -p "$PUPPETEER_CONFIG" \
       -i architecture-scaffolding/diagram.mmd -o /tmp/omega-diagram.svg
     npx --yes @mermaid-js/mermaid-cli \
+      -p "$PUPPETEER_CONFIG" \
       -i architecture-scaffolding/sequence.mmd -o /tmp/omega-sequence.svg
   else
     echo "WARN: mmdc/npx unavailable; Mermaid validation skipped" >&2
   fi
+  rm -f "$PUPPETEER_CONFIG"
 fi
 
 if ((RUN_PROJECT_TESTS)); then
