@@ -9,7 +9,8 @@ MARKER="$(printf '%s' "$BODY" | sed -n 's/.*<!-- \([^ ]*\) -->.*/\1/p' | head -n
 
 comments="$(gh api --paginate \
   "/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-  --jq --arg marker "$MARKER" '.[] | select(.body | contains($marker)) | .id')"
+  --jq '.[] | {id, body}' | \
+  jq -r --arg marker "$MARKER" 'select(.body | contains($marker)) | .id')"
 comment_id="$(printf '%s\n' "$comments" | head -n1)"
 if [[ -n "$comment_id" ]]; then
   gh api --method PATCH "/repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" -f body="$BODY" >/dev/null
