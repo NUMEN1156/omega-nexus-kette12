@@ -180,10 +180,10 @@ fi
 
 # Keep the PR's OpenAPI contract for validation. The setup PR intentionally
 # carries the lint fix; replacing it with main would validate the old baseline.
-# Known architecture files remain based on the current main model.
+# The architecture summary remains based on the current main model; the PR's
+# diagram and OpenAPI contract are retained so their actual syntax is tested.
 git restore --source="$REMOTE/$BASE_BRANCH" -- \
-  architecture-scaffolding/architecture_summary.json \
-  architecture-scaffolding/diagram.mmd
+  architecture-scaffolding/architecture_summary.json
 
 log "Splitting the current main Mermaid document into flowchart and sequence files"
 python3 - "$REPO_DIR" <<'PY'
