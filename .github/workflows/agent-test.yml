@@ -1,0 +1,79 @@
+name: GitHub Agent Test
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+    outputs:
+      status:
+        value: ${{ jobs.test.outputs.status }}
+      summary:
+        value: ${{ jobs.test.outputs.summary }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.result.outputs.status || steps.failed_result.outputs.status }}
+      summary: ${{ steps.result.outputs.summary || steps.failed_result.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install validators
+        run: npm install --global @redocly/cli @mermaid-js/mermaid-cli
+      - name: Validate proposed merge and project
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -Eeuo pipefail
+          chmod +x ./resolve-pr32-merge.sh
+          ./resolve-pr32-merge.sh "$GITHUB_WORKSPACE" --pr "$PR_NUMBER" --no-commit --no-comment
+          python3 -m json.tool architecture-scaffolding/architecture_summary.json >/dev/null
+          redocly lint architecture-scaffolding/openapi.yaml
+          printf '%s\n' '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > /tmp/puppeteer-config.json
+          mmdc -p /tmp/puppeteer-config.json -i architecture-scaffolding/diagram.mmd -o /tmp/diagram.svg
+          mmdc -p /tmp/puppeteer-config.json -i architecture-scaffolding/sequence.mmd -o /tmp/sequence.svg
+          cargo fmt --manifest-path arche-omega-relayer/Cargo.toml --all -- --check
+          cargo check --manifest-path arche-omega-relayer/Cargo.toml
+          cargo test --manifest-path arche-omega-relayer/Cargo.toml
+          python3 -m unittest discover -s Core/tests -p 'test_*.py'
+      - id: result
+        if: success()
+        run: |
+          echo 'status=passed' >> "$GITHUB_OUTPUT"
+          echo 'summary<<EOF' >> "$GITHUB_OUTPUT"
+          echo 'Merge simulation, JSON, OpenAPI, Mermaid, Rust, and Python tests passed.' >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+      - id: failed_result
+        if: failure()
+        run: |
+          echo 'status=failed' >> "$GITHUB_OUTPUT"
+          echo 'summary<<EOF' >> "$GITHUB_OUTPUT"
+          echo 'A merge or validation step failed; inspect the workflow log.' >> "$GITHUB_OUTPUT"
+          echo 'EOF' >> "$GITHUB_OUTPUT"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-test-${{ inputs.pr_number }}-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            /tmp/diagram.svg
+            /tmp/sequence.svg
+            target/

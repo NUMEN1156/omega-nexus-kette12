@@ -1,0 +1,36 @@
+name: GitHub Agent PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Produce deterministic review facts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -Eeuo pipefail
+          gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" > /tmp/pr.diff
+          git diff --stat "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > /tmp/stat.txt
+          printf 'PR=%s\nFILES_AND_LINES\n' "$PR_NUMBER" > /tmp/review-report.txt
+          cat /tmp/stat.txt >> /tmp/review-report.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-review-facts-${{ github.event.pull_request.number }}
+          path: /tmp/review-report.txt

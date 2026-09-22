@@ -94,17 +94,30 @@
     "operation_classes": [
       {
         "class": "ReadOnly",
-        "operations": ["Validate", "DeriveState", "Canonicalize", "Audit"],
+        "operations": [
+          "Validate",
+          "DeriveState",
+          "Canonicalize",
+          "Audit"
+        ],
         "risk": "Zero State Mutation Risk"
       },
       {
         "class": "Mutating",
-        "operations": ["State transition", "Vault mutation", "Ledger append"],
+        "operations": [
+          "State transition",
+          "Vault mutation",
+          "Ledger append"
+        ],
         "risk": "Integrity Breach Risk"
       },
       {
         "class": "Privileged",
-        "operations": ["Commit", "Publish", "Export"],
+        "operations": [
+          "Commit",
+          "Publish",
+          "Export"
+        ],
         "risk": "Requires Evidence Check"
       }
     ]
@@ -211,6 +224,20 @@
       "title": "Archiv-Artefakte bleiben beschreibbar",
       "impact": "Audit-Evidenz kann nachträglich verändert werden",
       "mitigation": "WORM-Archivierung mit chmod 444 als Abschlussinvariante erzwingen"
+    }
+  ],
+  "design_artifacts": [
+    {
+      "name": "diagram.mmd",
+      "purpose": "Visualisierung der Systemarchitektur als Flowchart."
+    },
+    {
+      "name": "sequence.mmd",
+      "purpose": "Visualisierung des End-to-End-Ablaufs als Sequenzdiagramm."
+    },
+    {
+      "name": "openapi.yaml",
+      "purpose": "API-Vertrag für Core, Verification und Audit."
     }
   ]
 }

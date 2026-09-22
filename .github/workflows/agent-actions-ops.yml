@@ -1,0 +1,31 @@
+name: GitHub Agent Actions Ops
+
+on:
+  workflow_run:
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record failed workflow facts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "${RUN_ID:-}" ]]; then
+            gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --log-failed > /tmp/actions-failure.log || true
+          else
+            gh run list --repo "$GITHUB_REPOSITORY" --limit 20 --json name,status,conclusion,headBranch > /tmp/actions-failure.log
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: actions-ops-${{ github.run_id }}
+          path: /tmp/actions-failure.log

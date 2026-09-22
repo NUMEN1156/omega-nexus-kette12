@@ -1,0 +1,29 @@
+name: GitHub Agent Release Draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to draft, for example v0.7.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    environment: release-approval
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create draft release only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -Eeuo pipefail
+          notes="$(git log --pretty=format:'- %s' -20)"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "$TAG" --notes "$notes"

@@ -1,0 +1,24 @@
+name: GitHub Agent Stale Maintenance
+
+on:
+  schedule:
+    - cron: '29 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ github.token }}
+          days-before-stale: 45
+          days-before-close: 14
+          stale-issue-message: 'This issue has had no activity for 45 days. It will close after 14 more days unless updated.'
+          stale-pr-message: 'This pull request has had no activity for 45 days. It will close after 14 more days unless updated.'
+          exempt-issue-labels: 'pinned,security,agent:keep'
+          exempt-pr-labels: 'pinned,security,agent:keep'

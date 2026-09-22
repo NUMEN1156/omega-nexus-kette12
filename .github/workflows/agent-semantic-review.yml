@@ -1,0 +1,84 @@
+name: GitHub Agent Semantic Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to review
+        required: true
+        type: string
+      model:
+        description: OpenAI-compatible review model
+        required: false
+        default: gpt-5-mini
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: semantic-review-${{ inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: LLM semantic review
+    runs-on: ubuntu-latest
+    environment: semantic-review
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            scripts
+
+      - name: Install review client
+        run: python3 -m pip install --disable-pip-version-check openai
+
+      - name: Collect trusted PR metadata
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -Eeuo pipefail
+          base_sha="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json baseRefOid --jq '.baseRefOid')"
+          head_sha="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq '.headRefOid')"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Run structured semantic review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          REVIEW_MODEL: ${{ inputs.model }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            echo 'Missing secret OPENAI_API_KEY. No review was performed.' >&2
+            exit 2
+          fi
+          python3 scripts/semantic_review.py
+
+      - name: Update one semantic review comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: scripts/upsert-pr-comment.sh "$PR_NUMBER" "$(cat semantic-review.md)"
+
+      - name: Upload machine-readable review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semantic-review-${{ inputs.pr_number }}-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            semantic-review.json
+            semantic-review.md

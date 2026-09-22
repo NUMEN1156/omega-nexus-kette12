@@ -1,0 +1,31 @@
+%% NEXUS_11 v0.6.0 + KETTE12 End-to-End-Ablauf
+sequenceDiagram
+  autonumber
+  participant I as Intent Producer
+  participant A as @nexus11/cli-adapter
+  participant C as nexus11-core
+  participant T as Golden Test Vectors
+  participant B as Hermetic Builder
+  participant V as Verification Gate
+  participant R as Rekor/OIDC/Provenance
+  participant W as WORM Archive
+  participant U as Nexus Command Center
+
+  T->>C: Verify input -> JCS -> state transition -> hash/signature
+  I->>A: Submit protocol-relevant action
+  A->>C: Delegate action via typed subprocess
+  C->>C: Enforce operation class and deterministic invariants
+  C-->>A: Canonical state, signatures, BLAKE3 root
+  A-->>I: Return authoritative result
+  B->>R: Produce SBOM, provenance, OIDC identity, inclusion evidence
+  B->>V: Submit artifact digest + build evidence
+  C->>V: Submit subject digest + signed evidence
+  V->>R: Validate provenance correlation and Rekor inclusion
+  alt All checks pass
+    V->>W: Persist compliance artifacts and chmod 444
+    V->>U: Publish read-only report.json evidence
+    U->>U: Render happy path and mutated fixture comparison
+  else Any mismatch
+    V-->>B: Fail closed with exit code != 0
+    V-->>U: Withhold success state
+  end

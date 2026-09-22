@@ -1,0 +1,35 @@
+name: GitHub Agent Issue Triage
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: github.event.issue.author_association != 'NONE'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Classify issue safely
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          set -Eeuo pipefail
+          title="${TITLE,,}"
+          labels="agent:triaged"
+          [[ "$title" == *bug* ]] && labels="$labels,bug"
+          [[ "$title" == *security* || "$title" == *vulnerability* ]] && labels="$labels,security"
+          [[ "$title" == *feature* || "$title" == *request* ]] && labels="$labels,enhancement"
+          IFS=',' read -ra arr <<< "$labels"
+          gh issue edit "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" $(printf -- '--add-label %q ' "${arr[@]}")
+          gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body '<!-- github-agent:issue-triage -->
+          Automated triage completed. A maintainer or planning agent can now refine scope, priority, and acceptance criteria.'
