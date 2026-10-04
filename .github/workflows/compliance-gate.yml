@@ -188,9 +188,8 @@ jobs:
           BUNDLE_PATH="${{ env.EVIDENCE_DIR }}/rekor-bundle.json"
 
           if [[ "${MODE}" == "STRICT_LIVE" ]]; then
-            cosign sign-blob \
-              --yes \
-              --bundle "${BUNDLE_PATH}" \
+            bash ./scripts/cosign-sign-blob-retry.sh \
+              "${BUNDLE_PATH}" \
               "${MANIFEST_PATH}"
           else
             echo "DRY_RUN_STRUCTURAL" > "${{ env.EVIDENCE_DIR }}/attestation.mode"
