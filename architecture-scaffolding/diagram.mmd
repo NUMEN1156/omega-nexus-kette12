@@ -1,13 +1,8 @@
 %% NEXUS_11 v0.6.0 + KETTE12 Compliance Baseline
 flowchart LR
-<<<<<<< HEAD
   U[User / LLM Intent Producer] --> A["@nexus11/cli-adapter"]
   A --> C[nexus11-core<br/>Rust authoritative core]
   G[Golden Test Vectors] --> C
-=======
-  A[GitHub Issue<br/>+ Label architecture-scaffolding] --> B[GitHub Actions Workflow]
-  B --> C[Scaffolding Orchestrator]
->>>>>>> origin/fix/architecture-artifacts
 
   C --> J[JCS RFC 8785<br/>Canonicalization]
   J --> S[Deterministic state transition]
@@ -28,7 +23,6 @@ flowchart LR
   V -->|pass only| UI[Nexus Command Center<br/>read-only audit mode]
   V -->|fail| X[Hard stop<br/>continue-on-error: false<br/>no UI publish, no archive]
 
-<<<<<<< HEAD
   W --> VM[vault_manifest.json]
   W --> BR[blake3_root.json]
   W --> SE[state_export.json]
@@ -43,12 +37,3 @@ flowchart LR
   classDef control fill:#052e16,color:#ecfccb,stroke:#166534;
   class C,V,W trust;
   class G,B,UI control;
-=======
-  D --> E[architecture_summary.json]
-  D --> F[diagram.mmd]
-  D --> G[openapi.yaml]
-  D --> H[sequence.mmd]
-
-  classDef control fill:#0f172a,color:#fff,stroke:#334155;
-  class B,C,D control;
->>>>>>> origin/fix/architecture-artifacts
