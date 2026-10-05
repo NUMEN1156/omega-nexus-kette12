@@ -140,9 +140,18 @@
       "worm": true
     },
     {
+<<<<<<< HEAD
       "name": "blake3_root.json",
       "purpose": "Primärer Integritätswurzel-Hash des Gesamtzustands",
       "worm": true
+=======
+      "name": "diagram.mmd",
+      "purpose": "Visualisierung der Container-Sicht (Flowchart)."
+    },
+    {
+      "name": "sequence.mmd",
+      "purpose": "Visualisierung der End-to-End-Interaktion (Sequenzdiagramm)."
+>>>>>>> origin/fix/architecture-artifacts
     },
     {
       "name": "state_export.json",

@@ -6,6 +6,7 @@ info:
     name: Proprietary
     identifier: Proprietary
   description: |
+<<<<<<< HEAD
     API-Verträge für den autoritativen Kern, das KETTE12 Verification Gate und
     die read-only Bereitstellung verifizierter Audit-Evidenz.
 servers:
@@ -20,6 +21,24 @@ tags:
     description: Read-only access to verified audit evidence and fixtures.
 security:
   - bearerAuth: []
+=======
+    API zur Orchestrierung eines Multi-Agenten-Workflows, der aus Anforderungen
+    verifizierbare Architekturartefakte erzeugt.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: https://api.omega-nexus.local/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Jobs
+    description: Lebenszyklus von Scaffolding-Jobs
+  - name: Artifacts
+    description: Abruf erzeugter Artefakte
+  - name: Reviews
+    description: Human-in-the-loop Freigabeentscheidungen
+>>>>>>> origin/fix/architecture-artifacts
 paths:
   /core/canonicalize:
     post:
@@ -136,6 +155,12 @@ paths:
                 $ref: '#/components/schemas/MutatedFixtureResult'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          description: Job wartet nicht auf Freigabe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
 components:
   securitySchemes:
@@ -143,6 +168,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/fix/architecture-artifacts
   parameters:
     RunId:
       name: runId
@@ -308,7 +337,14 @@ components:
 
     VerificationRunStatus:
       type: object
+<<<<<<< HEAD
       required: [run_id, status, checks]
+=======
+      required:
+        - job_id
+        - status
+        - submitted_at
+>>>>>>> origin/fix/architecture-artifacts
       properties:
         run_id:
           type: string
@@ -318,9 +354,29 @@ components:
           enum: [queued, running, passed, failed]
         gate_decision:
           type: string
+<<<<<<< HEAD
           enum: [pass, fail]
           description: Present only after the verification run reaches a terminal state.
         checks:
+=======
+          enum:
+            - normalization
+            - parallel_design
+            - agent_review
+            - consolidation
+            - human_approval
+            - export
+        submitted_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        findings:
+>>>>>>> origin/fix/architecture-artifacts
           type: array
           items:
             $ref: '#/components/schemas/VerificationCheck'
@@ -350,6 +406,19 @@ components:
           type: boolean
         detail:
           type: string
+<<<<<<< HEAD
+=======
+          enum:
+            - architecture_summary.json
+            - diagram.mmd
+            - sequence.mmd
+            - openapi.yaml
+        path:
+          type: string
+        sha256:
+          type: string
+          pattern: '^[A-Fa-f0-9]{64}$'
+>>>>>>> origin/fix/architecture-artifacts
 
     AuditReport:
       type: object
