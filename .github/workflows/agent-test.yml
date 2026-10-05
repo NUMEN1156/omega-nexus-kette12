@@ -27,6 +27,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: refs/pull/${{ inputs.pr_number }}/merge
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
