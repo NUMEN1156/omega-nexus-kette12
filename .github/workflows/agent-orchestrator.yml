@@ -3,19 +3,13 @@ name: GitHub Agent Orchestrator
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: Pull request number
-        required: true
-        type: string
 
 permissions:
   contents: read
   pull-requests: read
 
 concurrency:
-  group: agent-orchestrator-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: agent-orchestrator-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:

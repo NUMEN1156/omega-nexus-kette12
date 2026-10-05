@@ -26,6 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -38,13 +39,8 @@ jobs:
       - name: Install validators
         run: npm install --global @redocly/cli @mermaid-js/mermaid-cli
       - name: Validate proposed merge and project
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -Eeuo pipefail
-          chmod +x ./resolve-pr32-merge.sh
-          ./resolve-pr32-merge.sh "$GITHUB_WORKSPACE" --pr "$PR_NUMBER" --no-commit --no-comment
           python3 -m json.tool architecture-scaffolding/architecture_summary.json >/dev/null
           redocly lint architecture-scaffolding/openapi.yaml
           printf '%s\n' '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > /tmp/puppeteer-config.json
@@ -59,7 +55,7 @@ jobs:
         run: |
           echo 'status=passed' >> "$GITHUB_OUTPUT"
           echo 'summary<<EOF' >> "$GITHUB_OUTPUT"
-          echo 'Merge simulation, JSON, OpenAPI, Mermaid, Rust, and Python tests passed.' >> "$GITHUB_OUTPUT"
+          echo 'Proposed merge ref, JSON, OpenAPI, Mermaid, Rust, and Python validation passed.' >> "$GITHUB_OUTPUT"
           echo 'EOF' >> "$GITHUB_OUTPUT"
       - id: failed_result
         if: failure()
