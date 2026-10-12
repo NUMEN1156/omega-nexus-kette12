@@ -5,8 +5,8 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use rustls::server::AllowAnyAuthenticatedClient;
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustls::server::WebPkiClientVerifier;
+use rustls::ServerConfig;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast;
 use tokio::time::{self, Instant};
@@ -83,26 +83,20 @@ impl RelayServer {
 
 fn build_tls_acceptor(config: &RelayConfig) -> Result<TlsAcceptor, Box<dyn std::error::Error>> {
     let mut cert_reader = BufReader::new(File::open(&config.cert_path)?);
-    let certs = rustls_pemfile::certs(&mut cert_reader)?
-        .into_iter()
-        .map(Certificate)
-        .collect();
+    let certs = rustls_pemfile::certs(&mut cert_reader).collect::<Result<Vec<_>, _>>()?;
     let mut key_reader = BufReader::new(File::open(&config.key_path)?);
-    let key = PrivateKey(
-        rustls_pemfile::pkcs8_private_keys(&mut key_reader)?
-            .into_iter()
-            .next()
-            .ok_or("No private key found")?,
-    );
+    let key = rustls_pemfile::pkcs8_private_keys(&mut key_reader)
+        .next()
+        .ok_or("No private key found")??
+        .into();
     let mut ca_reader = BufReader::new(File::open(&config.ca_cert_path)?);
     let mut roots = rustls::RootCertStore::empty();
-    for ca in rustls_pemfile::certs(&mut ca_reader)? {
-        roots.add(&Certificate(ca))?;
+    for ca in rustls_pemfile::certs(&mut ca_reader) {
+        roots.add(ca?)?;
     }
-    let verifier = AllowAnyAuthenticatedClient::new(roots);
+    let verifier = WebPkiClientVerifier::builder(Arc::new(roots)).build()?;
     let cfg = ServerConfig::builder()
-        .with_safe_defaults()
-        .with_client_cert_verifier(Arc::new(verifier))
+        .with_client_cert_verifier(verifier)
         .with_single_cert(certs, key)?;
     Ok(TlsAcceptor::from(Arc::new(cfg)))
 }
@@ -151,7 +145,7 @@ async fn handle_client(
     let cert_node_id = {
         let (_, session) = tls_stream.get_ref();
         let certs = session.peer_certificates().ok_or("No peer certificate")?;
-        extract_node_id(&certs.first().ok_or("Empty peer certificate chain")?.0)?
+        extract_node_id(certs.first().ok_or("Empty peer certificate chain")?.as_ref())?
     };
 
     let first = time::timeout(session_timeout, protocol::read_message(&mut tls_stream))

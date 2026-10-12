@@ -1,4 +1,5 @@
-use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore, ServerName};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+use rustls::{ClientConfig, RootCertStore};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use serde::{Deserialize, Serialize};
 use std::{env, fs::File, io::BufReader, sync::Arc};
@@ -23,26 +24,23 @@ fn env_or(key: &str, default: &str) -> String {
     env::var(key).unwrap_or_else(|_| default.into())
 }
 
-fn load_certs(path: &str) -> Vec<Certificate> {
+fn load_certs(path: &str) -> Vec<CertificateDer<'static>> {
     certs(&mut BufReader::new(
         File::open(path).expect("certificate file"),
     ))
     .expect("parse certificate")
-    .into_iter()
-    .map(Certificate)
-    .collect()
+    .collect::<Result<_, _>>()
+    .expect("parse certificate")
 }
 
-fn load_key(path: &str) -> PrivateKey {
-    PrivateKey(
-        pkcs8_private_keys(&mut BufReader::new(
-            File::open(path).expect("private key file"),
-        ))
-        .expect("parse private key")
-        .into_iter()
-        .next()
-        .expect("private key missing"),
-    )
+fn load_key(path: &str) -> PrivateKeyDer<'static> {
+    pkcs8_private_keys(&mut BufReader::new(
+        File::open(path).expect("private key file"),
+    ))
+    .next()
+    .expect("private key missing")
+    .expect("parse private key")
+    .into()
 }
 
 async fn send<W: AsyncWrite + Unpin>(
@@ -77,10 +75,9 @@ async fn receive<R: AsyncRead + Unpin>(
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut roots = RootCertStore::empty();
     for certificate in load_certs(&env_or("RELAY_CA_CERT", "certs/ca.crt")) {
-        roots.add(&certificate)?;
+        roots.add(certificate)?;
     }
     let config = ClientConfig::builder()
-        .with_safe_defaults()
         .with_root_certificates(roots)
         .with_client_auth_cert(
             load_certs(&env_or("CLAP_CLIENT_CERT", "certs/client.crt")),

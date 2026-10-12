@@ -1,4 +1,5 @@
-use rustls::{Certificate, ClientConfig, PrivateKey, RootCertStore, ServerName};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, ServerName};
+use rustls::{ClientConfig, RootCertStore};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 use serde::{Deserialize, Serialize};
 use std::{env, fs::File, io::BufReader, sync::Arc};
@@ -22,20 +23,19 @@ fn v(k: &str, d: &str) -> String {
     env::var(k).unwrap_or_else(|_| d.into())
 }
 
-fn cert(p: &str) -> Vec<Certificate> {
+fn cert(p: &str) -> Vec<CertificateDer<'static>> {
     certs(&mut BufReader::new(File::open(p).unwrap()))
         .unwrap()
-        .into_iter()
-        .map(Certificate)
-        .collect()
+        .collect::<Result<_, _>>()
+        .unwrap()
 }
 
-fn key(p: &str) -> PrivateKey {
-    PrivateKey(
-        pkcs8_private_keys(&mut BufReader::new(File::open(p).unwrap()))
-            .unwrap()
-            .remove(0),
-    )
+fn key(p: &str) -> PrivateKeyDer<'static> {
+    pkcs8_private_keys(&mut BufReader::new(File::open(p).unwrap()))
+        .next()
+        .unwrap()
+        .unwrap()
+        .into()
 }
 
 async fn put<S: AsyncWriteExt + Unpin>(
@@ -63,10 +63,9 @@ async fn get<S: AsyncReadExt + Unpin>(
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut r = RootCertStore::empty();
     for c in cert(&v("RELAY_CA_CERT", "certs/ca.crt")) {
-        r.add(&c)?;
+        r.add(c)?;
     }
     let c = ClientConfig::builder()
-        .with_safe_defaults()
         .with_root_certificates(r)
         .with_client_auth_cert(
             cert(&v("CLAP_CLIENT_CERT", "certs/client.crt")),
