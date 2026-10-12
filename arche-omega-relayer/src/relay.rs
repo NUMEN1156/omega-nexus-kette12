@@ -145,7 +145,12 @@ async fn handle_client(
     let cert_node_id = {
         let (_, session) = tls_stream.get_ref();
         let certs = session.peer_certificates().ok_or("No peer certificate")?;
-        extract_node_id(certs.first().ok_or("Empty peer certificate chain")?.as_ref())?
+        extract_node_id(
+            certs
+                .first()
+                .ok_or("Empty peer certificate chain")?
+                .as_ref(),
+        )?
     };
 
     let first = time::timeout(session_timeout, protocol::read_message(&mut tls_stream))

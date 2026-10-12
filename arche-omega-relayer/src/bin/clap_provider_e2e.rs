@@ -28,7 +28,6 @@ fn load_certs(path: &str) -> Vec<CertificateDer<'static>> {
     certs(&mut BufReader::new(
         File::open(path).expect("certificate file"),
     ))
-    .expect("parse certificate")
     .collect::<Result<_, _>>()
     .expect("parse certificate")
 }

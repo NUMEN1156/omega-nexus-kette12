@@ -25,7 +25,6 @@ fn v(k: &str, d: &str) -> String {
 
 fn cert(p: &str) -> Vec<CertificateDer<'static>> {
     certs(&mut BufReader::new(File::open(p).unwrap()))
-        .unwrap()
         .collect::<Result<_, _>>()
         .unwrap()
 }
