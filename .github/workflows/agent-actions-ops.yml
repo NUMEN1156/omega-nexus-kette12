@@ -2,6 +2,22 @@ name: GitHub Agent Actions Ops
 
 on:
   workflow_run:
+    # `workflow_run` requires an explicit workflow name list; without it the
+    # whole workflow file is invalid and every run fails with 0 jobs.
+    workflows:
+      - GitHub Agent Conflict Resolver
+      - GitHub Agent Dependency Audit
+      - GitHub Agent Health
+      - GitHub Agent Issue Triage
+      - GitHub Agent Orchestrator
+      - GitHub Agent PR Review
+      - GitHub Agent Release Draft
+      - GitHub Agent Security Audit
+      - GitHub Agent Semantic Review
+      - GitHub Agent Stale Maintenance
+      - GitHub Agent Test
+      - KETTE12 Compliance Gate & SLSA-L4 Verification
+      - Rust CI
     types: [completed]
   workflow_dispatch:
 
