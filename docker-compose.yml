@@ -17,9 +17,6 @@ services:
       L1_EVM_FROM: "${L1_EVM_FROM:-0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266}"
       L1_EVM_TO: "${L1_EVM_TO:-0x0000000000000000000000000000000000000001}"
       L1_EVM_CHAIN_ID: "${L1_EVM_CHAIN_ID:-31337}"
-    depends_on:
-      anvil:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:9090/"]
       interval: 5s
