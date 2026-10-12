@@ -23,12 +23,15 @@ jobs:
       - name: Rust dependency audit
         run: |
           cargo install cargo-audit --locked
-          cargo audit --workspace
+          cargo audit
       - name: Python dependency audit when requirements exist
         run: |
-          if compgen -G '**/requirements*.txt' >/dev/null; then
+          mapfile -d '' requirements_files < <(find . -type f -name 'requirements*.txt' -not -path './.git/*' -print0)
+          if (( ${#requirements_files[@]} > 0 )); then
             python -m pip install pip-audit
-            pip-audit -r requirements.txt || true
+            for requirements_file in "${requirements_files[@]}"; do
+              pip-audit -r "$requirements_file" || true
+            done
           else
-            echo 'No root requirements file; Rust audit completed.'
+            echo 'No Python requirements files; Rust audit completed.'
           fi
